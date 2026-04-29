@@ -1,6 +1,7 @@
 import 'package:academy007/main_screens.dart';
 import 'package:academy007/presentation/screens/registro_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Importante para travar orientação
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/auth_repository.dart';
 
@@ -16,9 +17,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _authRepo = AuthRepository();
 
-  // Controle de visibilidade da senha
   bool _obscurePassword = true;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Força a orientação sempre para Retrato (Portrait)
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  }
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
@@ -55,105 +62,154 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // SafeArea evita que o conteúdo bata no topo em iPhones/Androids modernos
       body: SafeArea(
-        // SingleChildScrollView resolve o erro de Overflow com o teclado
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 50.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "ACADEMY",
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryNeon,
-                  letterSpacing: 2,
-                ),
-              ),
-              const Text(
-                "Seu treino começa aqui.",
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
-              const SizedBox(height: 60),
-
-              // Campo de E-mail com teclado específico
-              TextField(
-                controller: _emailController,
-                keyboardType:
-                    TextInputType.emailAddress, // Chama teclado de email
-                autofillHints: const [
-                  AutofillHints.email,
-                ], // Sugestão do sistema
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: "E-mail",
-                  prefixIcon: Icon(
-                    Icons.email_outlined,
-                    color: AppTheme.primaryNeon,
+        child: Center(
+          // Garante centralização vertical se sobrar espaço
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment:
+                  CrossAxisAlignment.center, // Centraliza os itens
+              children: [
+                // LOGO NO TOPO
+                Image.asset(
+                  'assets/logo.jpg', // Certifique-se de ter a logo no pubspec.yaml
+                  height: 100,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: 80,
+                    color: Color.fromARGB(255, 43, 66, 39),
                   ),
-                  border: OutlineInputBorder(),
                 ),
-              ),
-              const SizedBox(height: 25),
+                const SizedBox(height: 20),
 
-              // Campo de Senha com Toggle On/Off
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Senha",
-                  prefixIcon: const Icon(
-                    Icons.lock_outline,
-                    color: AppTheme.primaryNeon,
+                // NOME ACEMEDIA CENTRALIZADO
+                const Text(
+                  "ACADEMY007",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 1.5,
                   ),
-                  border: const OutlineInputBorder(),
-                  // Botão para mostrar/esconder senha
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      color: Colors.grey,
+                ),
+                const Text(
+                  "Seu treino começa aqui.",
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+                const SizedBox(height: 50),
+
+                // INPUT E-MAIL ARREDONDADO
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "E-mail",
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    prefixIcon: const Icon(
+                      Icons.email_outlined,
+                      color: AppTheme.primaryNeon,
                     ),
-                    onPressed: () {
-                      setState(() => _obscurePassword = !_obscurePassword);
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // Botão de Login com estado de carregamento
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryNeon,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 18,
+                      horizontal: 20,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        30,
+                      ), // Cantos arredondados
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
                     ),
                   ),
-                  onPressed: _isLoading ? null : _handleLogin,
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.black)
-                      : const Text(
-                          "ENTRAR",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                ),
+                const SizedBox(height: 20),
+
+                // INPUT SENHA ARREDONDADO
+                TextField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "Senha",
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    prefixIcon: const Icon(
+                      Icons.lock_outline,
+                      color: AppTheme.primaryNeon,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 18,
+                      horizontal: 20,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                // BOTÃO DE LOGIN ARREDONDADO
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryNeon,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    onPressed: _isLoading ? null : _handleLogin,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.black,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            "ENTRAR",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
-                        ),
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 20),
-              Center(
-                child: TextButton(
+                const SizedBox(height: 25),
+                TextButton(
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -176,8 +232,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
