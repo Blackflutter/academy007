@@ -20,7 +20,6 @@ class _TreinoScreenState extends State<TreinoScreen> {
   // Lista local para podermos remover itens em tempo real
   List<Map<String, dynamic>> _exerciciosRestantes = [];
   bool _isLoading = true;
-  int _totalInicial = 0;
 
   @override
   void initState() {
@@ -41,7 +40,6 @@ class _TreinoScreenState extends State<TreinoScreen> {
 
       setState(() {
         _exerciciosRestantes = List<Map<String, dynamic>>.from(dados);
-        _totalInicial = _exerciciosRestantes.length;
         _isLoading = false;
       });
     } catch (e) {
@@ -160,6 +158,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
 
                               if (mounted) {
                                 showModalBottomSheet(
+                                  // ignore: use_build_context_synchronously
                                   context: context,
                                   backgroundColor: Colors.transparent,
                                   builder: (context) => ConclusaoExercicioSheet(

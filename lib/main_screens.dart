@@ -18,8 +18,8 @@ class _MainScreenState extends State<MainScreen> {
   // Lista das abas do aplicativo
   final List<Widget> _paginas = [
     const DashboardScreen(), // Aba 1: Resumo e Progresso
-    const CadastroScreen(), // Aba 2: Lista de Categorias
-    const HistoricoScreen(), // Aba 3: Histórico detalhado
+    const HistoricoScreen(), // Aba 2: Lista de Categorias
+    const CadastroScreen(), // Aba 3: Histórico detalhado
     const PerfilScreen(), // Aba 4: Perfil e Configurações
   ];
 
@@ -51,9 +51,9 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Dashboard',
             ),
             NavigationDestination(
-              icon: Icon(Icons.fitness_center_outlined),
+              icon: Icon(Icons.food_bank_outlined),
               selectedIcon: Icon(Icons.fitness_center, color: Colors.black),
-              label: 'Treinos',
+              label: 'Food',
             ),
             NavigationDestination(
               icon: Icon(Icons.history),

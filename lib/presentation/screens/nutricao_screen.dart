@@ -1,3 +1,4 @@
+import 'package:academy007/core/router/app_routes.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/nutricao_repository.dart';
@@ -15,6 +16,16 @@ class _NutricaoScreenState extends State<NutricaoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // No Scaffold da sua aba de Alimentação
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppTheme.primaryNeon,
+        child: const Icon(Icons.add_chart, color: Colors.black),
+        onPressed: () {
+          // Chama a rota que definimos na classe AppRoutes
+          Navigator.pushNamed(context, AppRoutes.cadastroPlanoAlimentar);
+        },
+      ),
+
       appBar: AppBar(
         title: const Text("Meu Plano Alimentar"),
         backgroundColor: Colors.transparent,
