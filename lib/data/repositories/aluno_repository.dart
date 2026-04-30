@@ -6,27 +6,43 @@ class AlunoRepository {
 
   /// Salva ou atualiza os dados básicos do perfil do aluno.
   /// Utiliza 'upsert' para garantir que o registro seja vinculado ao UID da Auth.
-  Future<void> salvarOuAtualizarPerfil(AlunoModel aluno) async {
-    final user = _supabase.auth.currentUser;
+  Future<void> salvarOuAtualizarPerfil(
+    AlunoModel aluno, {
+    required String email,
+    required String senha,
+  }) async {
+    try {
+      // 1. Verificar se o usuário já está logado (Atualização)
+      // ou se precisa criar conta (Novo Cadastro)
+      var user = _supabase.auth.currentUser;
 
-    if (user != null) {
-      try {
-        await _supabase.from('perfis').upsert({
-          'id': user.id,
-          'nome': aluno.nome,
-          'peso_atual': aluno.peso,
-          'altura': aluno.altura,
-          'categoria_id': aluno.categoriaId,
-          'email': user.email,
-        });
-
-        // Sempre que atualizar o perfil, registramos no histórico para manter o gráfico em dia
-        await registrarNovoPeso(aluno.peso);
-      } catch (e) {
-        throw 'Erro ao salvar perfil: $e';
+      if (user == null) {
+        // CADASTRO NOVO: Cria o acesso no Supabase Auth primeiro
+        final AuthResponse res = await _supabase.auth.signUp(
+          email: email,
+          password: senha,
+        );
+        user = res.user;
       }
-    } else {
-      throw 'Nenhum usuário autenticado encontrado.';
+
+      if (user == null) throw 'Falha ao processar autenticação.';
+
+      // 2. Agora com o UID em mãos (user.id), salvamos na tabela 'perfis'
+      // O 'upsert' resolve tanto o primeiro cadastro quanto atualizações futuras
+      await _supabase.from('perfis').upsert({
+        'id': user.id,
+        'nome': aluno.nome,
+        'peso_atual': aluno.peso,
+        'altura': aluno.altura,
+        'categoria_id': aluno.categoriaId,
+        'email': user.email,
+        'anamnese': aluno.anamnese, // <--- SALVANDO AS 10 PERGUNTAS AQUI
+      });
+
+      // 3. Registra no histórico de peso para o gráfico
+      await registrarNovoPeso(aluno.peso);
+    } catch (e) {
+      throw 'Erro no processo de cadastro: $e';
     }
   }
 

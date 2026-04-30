@@ -1,6 +1,9 @@
 import 'package:academy007/presentation/screens/admin_treino_screen.dart';
-import 'package:academy007/presentation/screens/categorias_screens.dart';
+import 'package:academy007/presentation/screens/criar_grupo_screen.dart';
+import 'package:academy007/presentation/screens/membros_grupo_screen.dart';
+import 'package:academy007/presentation/screens/treino_grupos_screen.dart';
 import 'package:academy007/presentation/screens/treino_screen.dart';
+import 'package:academy007/presentation/widgets/custom_drawer.dart';
 import 'package:academy007/presentation/widgets/evolucao_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,6 +22,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final AlunoRepository _repository = AlunoRepository();
   final supabase = Supabase.instance.client;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _mostrarDialogoPeso(BuildContext context) {
     final controller = TextEditingController();
@@ -72,9 +76,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey, // Chave essencial para o IconButton abrir o Drawer
+      drawer: const CustomDrawer(), // Menu lateral
+      backgroundColor: AppTheme.darkBackground, // Garante o fundo padrão
       body: SafeArea(
         child: FutureBuilder<Map<String, dynamic>?>(
-          // AGORA: Busca o perfil específico de quem está logado
           future: _repository.buscarMeuPerfil(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -85,7 +91,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             final dados = snapshot.data;
 
-            // Lógica de IMC em tempo real com dados do banco
+            // Cálculo do IMC
             double imc = 0;
             if (dados != null &&
                 dados['peso_atual'] != null &&
@@ -109,25 +115,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 15),
+                  const ViewTreinoGrupoWidget(),
+                  // Adicione aqui
                   _buildBentoGrid(dados),
                   const SizedBox(height: 30),
                   _buildActionCard(),
-
-                  // No Column do build da DashboardScreen, adicione:
                   const Text(
                     "Sua Evolução",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 15),
-
                   FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _repository
-                        .buscarHistoricoPeso(), // Função que criamos no repositório
+                    future: _repository.buscarHistoricoPeso(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
                         return const LinearProgressIndicator();
                       }
-
                       return EvolucaoChart(historico: snapshot.data!);
                     },
                   ),
@@ -145,28 +148,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Lado Esquerdo: Menu e Boas-vindas
+        Row(
           children: [
-            const Text(
-              "Bem-vindo de volta,",
-              style: TextStyle(color: Colors.grey),
+            IconButton(
+              icon: const Icon(Icons.menu, color: AppTheme.primaryNeon),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
             ),
-            Text(
-              nome,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            const SizedBox(width: 5),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Bem-vindo de volta,",
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                Text(
+                  nome,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+
+        // Lado Direito: Logout e Perfil
         Row(
           children: [
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
               onPressed: _handleLogout,
             ),
-
+            const SizedBox(width: 8),
             PopupMenuButton<String>(
-              offset: Offset(0, 50),
+              offset: const Offset(0, 50),
               icon: Container(
                 padding: const EdgeInsets.all(3),
                 decoration: const BoxDecoration(
@@ -311,12 +329,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         GestureDetector(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const CategoriasScreen()),
+            MaterialPageRoute(builder: (_) => const CriarGrupoScreen()),
           ),
           child: _bentoItem(
-            "Gestão",
+            "Grupos",
             Icons.group_add,
-            "Categorias",
+            "Cadastro de Grupos",
             Colors.tealAccent,
           ),
         ),
@@ -352,13 +370,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color: AppTheme.primaryNeon.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(Icons.bolt, color: AppTheme.primaryNeon),
           SizedBox(width: 15),
           Text(
-            "Pronto para o treino?",
+            "Pronto para o treino",
             style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      MembrosGrupoScreen(grupoId: '', nomeGrupo: ''),
+                ),
+              );
+            },
+            child: Text(
+              'Meus Grupos',
+              style: TextStyle(fontSize: 15, color: Colors.amber),
+            ),
           ),
         ],
       ),

@@ -11,106 +11,121 @@ class CadastroScreen extends StatefulWidget {
 }
 
 class _CadastroScreenState extends State<CadastroScreen> {
+  // Controllers para os campos de texto
   final TextEditingController _nomeController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _senhaController = TextEditingController();
+
   final AlunoRepository _repository = AlunoRepository();
 
+  // Estado dos Dados Físicos
   double _peso = 75.0;
   double _altura = 1.75;
   bool _isLoading = false;
 
-  // Controle de Fluxo
-  int _etapaAtual = 0; // 0: Dados Físicos, 1: Anamnese
+  // Gerenciamento de Etapas: 0 = Perfil, 1 = Anamnese, 2 = Auth
+  int _etapaAtual = 0;
   int _perguntaIndex = 0;
-  Map<String, dynamic> _respostasAnamnese = {};
+  final Map<String, dynamic> _respostasAnamnese = {};
 
+  // Lista oficial de 10 perguntas para o Professor Academy007
   final List<Map<String, dynamic>> _perguntas = [
     {
-      "id": "obj",
-      "q": "Qual seu objetivo?",
-      "ops": ["Emagrecer", "Massa Muscular", "Saúde"],
+      "id": "objetivo",
+      "q": "Qual seu objetivo principal?",
+      "ops": ["Emagrecer", "Ganhar Massa", "Saúde/Longevidade"],
     },
     {
-      "id": "lesao",
-      "q": "Possui lesões?",
-      "ops": ["Não", "Sim (Joelhos/Coluna)", "Outras"],
+      "id": "experiencia",
+      "q": "Qual seu nível de experiência?",
+      "ops": ["Iniciante (Nunca treinei)", "Intermediário", "Avançado"],
     },
     {
-      "id": "exp",
-      "q": "Experiência de treino?",
-      "ops": ["Iniciante", "Intermediário", "Avançado"],
-    },
-    {
-      "id": "freq",
-      "q": "Treinos por semana?",
+      "id": "frequencia",
+      "q": "Quantas vezes pretende treinar?",
       "ops": ["1-2 dias", "3-4 dias", "5+ dias"],
     },
     {
-      "id": "dieta",
-      "q": "Faz dieta hoje?",
-      "ops": ["Sim", "Não", "Mais ou menos"],
+      "id": "lesao",
+      "q": "Possui alguma lesão ou dor?",
+      "ops": ["Não", "Sim (Joelhos/Coluna)", "Sim (Ombros/Outros)"],
     },
     {
-      "id": "meds",
-      "q": "Toma medicamentos?",
+      "id": "doenca",
+      "q": "Possui histórico de doenças?",
+      "ops": ["Não", "Diabetes/Hipertensão", "Cardíacas"],
+    },
+    {
+      "id": "dieta",
+      "q": "Você segue alguma dieta?",
+      "ops": ["Sim, rigorosa", "Tento comer bem", "Não sigo"],
+    },
+    {
+      "id": "medicamento",
+      "q": "Usa medicamentos contínuos?",
       "ops": ["Sim", "Não"],
     },
     {
-      "id": "vicios",
-      "q": "Tabagismo/Vícios?",
+      "id": "suplemento",
+      "q": "Utiliza algum suplemento?",
       "ops": ["Sim", "Não"],
     },
     {
       "id": "sono",
-      "q": "Qualidade do sono?",
-      "ops": ["Boa", "Regular", "Ruim"],
+      "q": "Como avalia seu sono?",
+      "ops": ["Bom (7h+)", "Regular", "Ruim (Insonia)"],
     },
     {
-      "id": "suples",
-      "q": "Usa suplementos?",
-      "ops": ["Sim", "Não"],
-    },
-    {
-      "id": "cardio",
-      "q": "Problemas cardíacos?",
-      "ops": ["Sim", "Não"],
+      "id": "disponibilidade",
+      "q": "Onde irá treinar?",
+      "ops": ["Academia", "Em Casa", "Ar Livre"],
     },
   ];
 
   @override
   void dispose() {
     _nomeController.dispose();
+    _emailController.dispose();
+    _senhaController.dispose();
     super.dispose();
   }
 
-  void _avancarOuSalvar() async {
-    if (_nomeController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Digite seu nome")));
+  // Lógica para avançar as etapas
+  void _proximoPasso() {
+    if (_nomeController.text.trim().isEmpty) {
+      _showSnackBar("Por favor, digite seu nome");
+      return;
+    }
+    setState(() => _etapaAtual = 1);
+  }
+
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // Função final que envia tudo para o Supabase
+  Future<void> _finalizarCadastroCompleto() async {
+    if (_emailController.text.isEmpty || _senhaController.text.length < 6) {
+      _showSnackBar("E-mail e senha (mín. 6 caracteres) são obrigatórios");
       return;
     }
 
-    if (_etapaAtual == 0) {
-      // Sai dos dados físicos e entra na Anamnese
-      setState(() => _etapaAtual = 1);
-    } else {
-      // Se já estiver na anamnese e terminou as 10 perguntas
-      _finalizarCadastro();
-    }
-  }
-
-  Future<void> _finalizarCadastro() async {
     setState(() => _isLoading = true);
     try {
       final novoAluno = AlunoModel(
-        nome: _nomeController.text,
+        nome: _nomeController.text.trim(),
         peso: _peso,
         altura: _altura,
         categoriaId: 1,
-        anamnese: _respostasAnamnese,
+        anamnese: _respostasAnamnese, // As 10 perguntas salvas como JSONB
       );
 
-      await _repository.salvarOuAtualizarPerfil(novoAluno);
+      // Envia para o repository tratar Auth + Tabela Perfis
+      await _repository.salvarOuAtualizarPerfil(
+        novoAluno,
+        email: _emailController.text.trim(),
+        senha: _senhaController.text.trim(),
+      );
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -119,10 +134,7 @@ class _CadastroScreenState extends State<CadastroScreen> {
         );
       }
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Erro: $e")));
+      if (mounted) _showSnackBar("Erro ao salvar: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -135,82 +147,110 @@ class _CadastroScreenState extends State<CadastroScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 25),
-          child: _etapaAtual == 0 ? _buildDadosFisicos() : _buildAnamnese(),
+          child: _renderizarEtapaAtual(),
         ),
       ),
     );
   }
 
-  // TELA 1: DADOS PESSOAIS
-  Widget _buildDadosFisicos() {
+  Widget _renderizarEtapaAtual() {
+    switch (_etapaAtual) {
+      case 0:
+        return _buildStepDadosFisicos();
+      case 1:
+        return _buildStepAnamnese();
+      case 2:
+        return _buildStepAuth();
+      default:
+        return _buildStepDadosFisicos();
+    }
+  }
+
+  // --- ETAPA 0: DADOS FÍSICOS ---
+  Widget _buildStepDadosFisicos() {
     double imc = _peso / (_altura * _altura);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 40),
-        const Text(
-          "Configurar Perfil",
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 30),
+          const Text(
+            "Configurar Perfil",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        const SizedBox(height: 20),
-        TextField(
-          controller: _nomeController,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: "Nome Completo",
-            filled: true,
-            fillColor: Colors.white10,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+          const SizedBox(height: 10),
+          const Text(
+            "Dados básicos para o seu professor",
+            style: TextStyle(color: Colors.grey),
           ),
-        ),
-        const SizedBox(height: 30),
-        _cardIMC(imc),
-        const SizedBox(height: 30),
-        _slider(
-          "Peso",
-          "${_peso.toStringAsFixed(1)} kg",
-          _peso,
-          40,
-          150,
-          (v) => setState(() => _peso = v),
-        ),
-        _slider(
-          "Altura",
-          "${_altura.toStringAsFixed(2)} m",
-          _altura,
-          1.2,
-          2.2,
-          (v) => setState(() => _altura = v),
-        ),
-        const Spacer(),
-        _botaoAcao("PRÓXIMO: AVALIAÇÃO FÍSICA", _avancarOuSalvar),
-        const SizedBox(height: 30),
-      ],
+          const SizedBox(height: 30),
+
+          TextField(
+            controller: _nomeController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: "Nome Completo",
+              filled: true,
+              fillColor: Colors.white10,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+          _cardIMC(imc),
+          const SizedBox(height: 30),
+
+          _sliderWidget(
+            "Peso",
+            "${_peso.toStringAsFixed(1)} kg",
+            _peso,
+            40,
+            160,
+            (v) => setState(() => _peso = v),
+          ),
+          const SizedBox(height: 20),
+          _sliderWidget(
+            "Altura",
+            "${_altura.toStringAsFixed(2)} m",
+            _altura,
+            1.3,
+            2.3,
+            (v) => setState(() => _altura = v),
+          ),
+
+          const SizedBox(height: 50),
+          _botaoPrincipal("PRÓXIMO: AVALIAÇÃO", _proximoPasso),
+        ],
+      ),
     );
   }
 
-  // TELA 2: ANAMNESE (AS 10 PERGUNTAS)
-  Widget _buildAnamnese() {
-    var p = _perguntas[_perguntaIndex];
+  // --- ETAPA 1: ANAMNESE (10 PERGUNTAS) ---
+  Widget _buildStepAnamnese() {
+    var pergunta = _perguntas[_perguntaIndex];
     return Column(
       children: [
-        const SizedBox(height: 40),
+        const SizedBox(height: 30),
         LinearProgressIndicator(
           value: (_perguntaIndex + 1) / 10,
           color: Theme.of(context).primaryColor,
+          backgroundColor: Colors.white10,
         ),
         const SizedBox(height: 20),
         Text(
           "Pergunta ${_perguntaIndex + 1} de 10",
           style: const TextStyle(color: Colors.grey),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 30),
         Text(
-          p['q'],
+          pergunta['q'],
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: Colors.white,
@@ -219,32 +259,34 @@ class _CadastroScreenState extends State<CadastroScreen> {
           ),
         ),
         const SizedBox(height: 40),
+
         ...List.generate(
-          p['ops'].length,
+          pergunta['ops'].length,
           (i) => Padding(
-            padding: const EdgeInsets.only(bottom: 15),
+            padding: const EdgeInsets.only(bottom: 12),
             child: SizedBox(
               width: double.infinity,
-              height: 55,
+              height: 60,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white10,
+                  backgroundColor: Colors.white.withOpacity(0.05),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
+                    side: const BorderSide(color: Colors.white10),
                   ),
                 ),
                 onPressed: () {
                   setState(() {
-                    _respostasAnamnese[p['id']] = p['ops'][i];
+                    _respostasAnamnese[pergunta['id']] = pergunta['ops'][i];
                     if (_perguntaIndex < 9) {
                       _perguntaIndex++;
                     } else {
-                      _finalizarCadastro(); // Auto-finaliza na última resposta
+                      _etapaAtual = 2; // Vai para a última tela de Auth
                     }
                   });
                 },
                 child: Text(
-                  p['ops'][i],
+                  pergunta['ops'][i],
                   style: const TextStyle(color: Colors.white, fontSize: 18),
                 ),
               ),
@@ -255,67 +297,124 @@ class _CadastroScreenState extends State<CadastroScreen> {
         if (_perguntaIndex > 0)
           TextButton(
             onPressed: () => setState(() => _perguntaIndex--),
-            child: const Text("Voltar pergunta"),
+            child: const Text("Voltar Pergunta"),
           ),
-        const SizedBox(height: 30),
+        const SizedBox(height: 20),
       ],
     );
   }
 
-  // Widgets de suporte
+  // --- ETAPA 2: AUTH (E-MAIL E SENHA) ---
+  Widget _buildStepAuth() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.lock_outline, size: 80, color: Colors.white24),
+        const SizedBox(height: 20),
+        const Text(
+          "Finalizar Acesso",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 30),
+
+        TextField(
+          controller: _emailController,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: "E-mail",
+            filled: true,
+            fillColor: Colors.white10,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+          ),
+        ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _senhaController,
+          obscureText: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: "Senha (mín. 6 caracteres)",
+            filled: true,
+            fillColor: Colors.white10,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+          ),
+        ),
+
+        const SizedBox(height: 50),
+        _botaoPrincipal("CRIAR MINHA CONTA", _finalizarCadastroCompleto),
+        TextButton(
+          onPressed: () => setState(() => _etapaAtual = 1),
+          child: const Text("Revisar Anamnese"),
+        ),
+      ],
+    );
+  }
+
+  // Widgets de Apoio (UI)
   Widget _cardIMC(double imc) => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(20),
+    padding: const EdgeInsets.all(25),
     decoration: BoxDecoration(
-      color: Colors.white10,
-      borderRadius: BorderRadius.circular(20),
+      color: Colors.white.withOpacity(0.05),
+      borderRadius: BorderRadius.circular(25),
+      border: Border.all(color: Colors.white10),
     ),
     child: Column(
       children: [
-        const Text("IMC", style: TextStyle(color: Colors.grey)),
+        const Text("SEU IMC ESTIMADO", style: TextStyle(color: Colors.grey)),
         Text(
           imc.toStringAsFixed(1),
           style: TextStyle(
-            fontSize: 48,
-            color: Theme.of(context).primaryColor,
+            fontSize: 60,
             fontWeight: FontWeight.bold,
+            color: Theme.of(context).primaryColor,
           ),
         ),
       ],
     ),
   );
-  Widget _slider(
-    String l,
-    String v,
-    double val,
+
+  Widget _sliderWidget(
+    String label,
+    String valor,
+    double atual,
     double min,
     double max,
-    Function(double) n,
+    Function(double) onChanged,
   ) => Column(
     children: [
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(l, style: const TextStyle(color: Colors.white)),
           Text(
-            v,
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+          ),
+          Text(
+            valor,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
         ],
       ),
       Slider(
-        value: val,
+        value: atual,
         min: min,
         max: max,
         activeColor: Theme.of(context).primaryColor,
-        onChanged: n,
+        onChanged: onChanged,
       ),
     ],
   );
-  Widget _botaoAcao(String t, VoidCallback f) => SizedBox(
+
+  Widget _botaoPrincipal(String texto, VoidCallback f) => SizedBox(
     width: double.infinity,
     height: 60,
     child: ElevatedButton(
@@ -327,10 +426,11 @@ class _CadastroScreenState extends State<CadastroScreen> {
       child: _isLoading
           ? const CircularProgressIndicator(color: Colors.black)
           : Text(
-              t,
+              texto,
               style: const TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
             ),
     ),
