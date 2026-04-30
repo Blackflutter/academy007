@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 // LOGO NO TOPO
                 Image.asset(
-                  'assets/logo.jpg', // Certifique-se de ter a logo no pubspec.yaml
+                  'assets/images/logo.jpg', // Certifique-se de ter a logo no pubspec.yaml
                   height: 100,
                   errorBuilder: (context, error, stackTrace) => const Icon(
                     Icons.account_balance_wallet_outlined,

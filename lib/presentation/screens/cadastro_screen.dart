@@ -11,7 +11,6 @@ class CadastroScreen extends StatefulWidget {
 }
 
 class _CadastroScreenState extends State<CadastroScreen> {
-  // Inicialização correta do Controller
   final TextEditingController _nomeController = TextEditingController();
   final AlunoRepository _repository = AlunoRepository();
 
@@ -19,32 +18,98 @@ class _CadastroScreenState extends State<CadastroScreen> {
   double _altura = 1.75;
   bool _isLoading = false;
 
+  // Controle de Fluxo
+  int _etapaAtual = 0; // 0: Dados Físicos, 1: Anamnese
+  int _perguntaIndex = 0;
+  Map<String, dynamic> _respostasAnamnese = {};
+
+  final List<Map<String, dynamic>> _perguntas = [
+    {
+      "id": "obj",
+      "q": "Qual seu objetivo?",
+      "ops": ["Emagrecer", "Massa Muscular", "Saúde"],
+    },
+    {
+      "id": "lesao",
+      "q": "Possui lesões?",
+      "ops": ["Não", "Sim (Joelhos/Coluna)", "Outras"],
+    },
+    {
+      "id": "exp",
+      "q": "Experiência de treino?",
+      "ops": ["Iniciante", "Intermediário", "Avançado"],
+    },
+    {
+      "id": "freq",
+      "q": "Treinos por semana?",
+      "ops": ["1-2 dias", "3-4 dias", "5+ dias"],
+    },
+    {
+      "id": "dieta",
+      "q": "Faz dieta hoje?",
+      "ops": ["Sim", "Não", "Mais ou menos"],
+    },
+    {
+      "id": "meds",
+      "q": "Toma medicamentos?",
+      "ops": ["Sim", "Não"],
+    },
+    {
+      "id": "vicios",
+      "q": "Tabagismo/Vícios?",
+      "ops": ["Sim", "Não"],
+    },
+    {
+      "id": "sono",
+      "q": "Qualidade do sono?",
+      "ops": ["Boa", "Regular", "Ruim"],
+    },
+    {
+      "id": "suples",
+      "q": "Usa suplementos?",
+      "ops": ["Sim", "Não"],
+    },
+    {
+      "id": "cardio",
+      "q": "Problemas cardíacos?",
+      "ops": ["Sim", "Não"],
+    },
+  ];
+
   @override
   void dispose() {
-    // É essencial descartar o controller ao fechar a tela
     _nomeController.dispose();
     super.dispose();
   }
 
-  Future<void> _salvarEProsseguir() async {
+  void _avancarOuSalvar() async {
     if (_nomeController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Por favor, digite seu nome")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Digite seu nome")));
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (_etapaAtual == 0) {
+      // Sai dos dados físicos e entra na Anamnese
+      setState(() => _etapaAtual = 1);
+    } else {
+      // Se já estiver na anamnese e terminou as 10 perguntas
+      _finalizarCadastro();
+    }
+  }
 
+  Future<void> _finalizarCadastro() async {
+    setState(() => _isLoading = true);
     try {
       final novoAluno = AlunoModel(
         nome: _nomeController.text,
         peso: _peso,
         altura: _altura,
-        categoriaId: 1, // ID padrão (ex: Futebol)
+        categoriaId: 1,
+        anamnese: _respostasAnamnese,
       );
 
-      // Salva no Supabase vinculado ao UID do usuário logado
       await _repository.salvarOuAtualizarPerfil(novoAluno);
 
       if (mounted) {
@@ -54,11 +119,10 @@ class _CadastroScreenState extends State<CadastroScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Erro ao salvar: $e")));
-      }
+        ).showSnackBar(SnackBar(content: Text("Erro: $e")));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -66,129 +130,209 @@ class _CadastroScreenState extends State<CadastroScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double imc = _peso / (_altura * _altura);
-
     return Scaffold(
+      backgroundColor: Colors.black,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 25),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
-              Text(
-                "Configurar Perfil",
-                style: Theme.of(context).textTheme.displayLarge,
-              ),
-              const SizedBox(height: 20),
-
-              // Campo de Nome corrigido
-              TextField(
-                controller: _nomeController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: "Nome Completo",
-                  labelStyle: const TextStyle(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.05),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // Card de IMC em tempo real
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(30),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.white10),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      "SEU IMC ATUAL",
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    Text(
-                      imc.toStringAsFixed(1),
-                      style: TextStyle(
-                        fontSize: 64,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 40),
-
-              _labelSlider("Peso", "${_peso.toStringAsFixed(1)} kg"),
-              Slider(
-                value: _peso,
-                min: 40,
-                max: 150,
-                activeColor: Theme.of(context).primaryColor,
-                onChanged: (v) => setState(() => _peso = v),
-              ),
-
-              const SizedBox(height: 20),
-
-              _labelSlider("Altura", "${_altura.toStringAsFixed(2)} m"),
-              Slider(
-                value: _altura,
-                min: 1.20,
-                max: 2.20,
-                activeColor: Theme.of(context).primaryColor,
-                onChanged: (v) => setState(() => _altura = v),
-              ),
-
-              const SizedBox(height: 50),
-
-              SizedBox(
-                width: double.infinity,
-                height: 60,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  onPressed: _isLoading ? null : _salvarEProsseguir,
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.black)
-                      : const Text(
-                          "PRÓXIMO",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-            ],
-          ),
+          child: _etapaAtual == 0 ? _buildDadosFisicos() : _buildAnamnese(),
         ),
       ),
     );
   }
 
-  Widget _labelSlider(String label, String valor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // TELA 1: DADOS PESSOAIS
+  Widget _buildDadosFisicos() {
+    double imc = _peso / (_altura * _altura);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 16)),
-        Text(
-          valor,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        const SizedBox(height: 40),
+        const Text(
+          "Configurar Perfil",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
         ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _nomeController,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            labelText: "Nome Completo",
+            filled: true,
+            fillColor: Colors.white10,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+          ),
+        ),
+        const SizedBox(height: 30),
+        _cardIMC(imc),
+        const SizedBox(height: 30),
+        _slider(
+          "Peso",
+          "${_peso.toStringAsFixed(1)} kg",
+          _peso,
+          40,
+          150,
+          (v) => setState(() => _peso = v),
+        ),
+        _slider(
+          "Altura",
+          "${_altura.toStringAsFixed(2)} m",
+          _altura,
+          1.2,
+          2.2,
+          (v) => setState(() => _altura = v),
+        ),
+        const Spacer(),
+        _botaoAcao("PRÓXIMO: AVALIAÇÃO FÍSICA", _avancarOuSalvar),
+        const SizedBox(height: 30),
       ],
     );
   }
+
+  // TELA 2: ANAMNESE (AS 10 PERGUNTAS)
+  Widget _buildAnamnese() {
+    var p = _perguntas[_perguntaIndex];
+    return Column(
+      children: [
+        const SizedBox(height: 40),
+        LinearProgressIndicator(
+          value: (_perguntaIndex + 1) / 10,
+          color: Theme.of(context).primaryColor,
+        ),
+        const SizedBox(height: 20),
+        Text(
+          "Pergunta ${_perguntaIndex + 1} de 10",
+          style: const TextStyle(color: Colors.grey),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          p['q'],
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 40),
+        ...List.generate(
+          p['ops'].length,
+          (i) => Padding(
+            padding: const EdgeInsets.only(bottom: 15),
+            child: SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white10,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+                onPressed: () {
+                  setState(() {
+                    _respostasAnamnese[p['id']] = p['ops'][i];
+                    if (_perguntaIndex < 9) {
+                      _perguntaIndex++;
+                    } else {
+                      _finalizarCadastro(); // Auto-finaliza na última resposta
+                    }
+                  });
+                },
+                child: Text(
+                  p['ops'][i],
+                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Spacer(),
+        if (_perguntaIndex > 0)
+          TextButton(
+            onPressed: () => setState(() => _perguntaIndex--),
+            child: const Text("Voltar pergunta"),
+          ),
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+
+  // Widgets de suporte
+  Widget _cardIMC(double imc) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white10,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Column(
+      children: [
+        const Text("IMC", style: TextStyle(color: Colors.grey)),
+        Text(
+          imc.toStringAsFixed(1),
+          style: TextStyle(
+            fontSize: 48,
+            color: Theme.of(context).primaryColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+  );
+  Widget _slider(
+    String l,
+    String v,
+    double val,
+    double min,
+    double max,
+    Function(double) n,
+  ) => Column(
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(l, style: const TextStyle(color: Colors.white)),
+          Text(
+            v,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+      Slider(
+        value: val,
+        min: min,
+        max: max,
+        activeColor: Theme.of(context).primaryColor,
+        onChanged: n,
+      ),
+    ],
+  );
+  Widget _botaoAcao(String t, VoidCallback f) => SizedBox(
+    width: double.infinity,
+    height: 60,
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Theme.of(context).primaryColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+      onPressed: _isLoading ? null : f,
+      child: _isLoading
+          ? const CircularProgressIndicator(color: Colors.black)
+          : Text(
+              t,
+              style: const TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+    ),
+  );
 }

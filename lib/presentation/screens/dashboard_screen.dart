@@ -257,8 +257,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      crossAxisSpacing: 15,
-      mainAxisSpacing: 15,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
       children: [
         GestureDetector(
           onTap: () => _mostrarDialogoPeso(context),
@@ -357,7 +357,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Icon(Icons.bolt, color: AppTheme.primaryNeon),
           SizedBox(width: 15),
           Text(
-            "Pronto para o treino de Futebol?",
+            "Pronto para o treino?",
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ],
