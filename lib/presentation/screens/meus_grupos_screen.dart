@@ -81,7 +81,7 @@ class _MeusGruposScreenState extends State<MeusGruposScreen> {
 
   Widget _buildGrupoCard(GrupoModel grupo) {
     return Card(
-      color: Colors.white.withOpacity(0.05),
+      color: Colors.white.withValues(alpha: 0.05),
       margin: const EdgeInsets.only(bottom: 15),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
@@ -155,7 +155,7 @@ class _MeusGruposScreenState extends State<MeusGruposScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
         decoration: BoxDecoration(
-          color: Theme.of(context).primaryColor.withOpacity(0.1),
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(

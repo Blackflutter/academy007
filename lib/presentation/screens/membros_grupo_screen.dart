@@ -107,7 +107,7 @@ class _MembrosGrupoScreenState extends State<MembrosGrupoScreen> {
               itemBuilder: (context, index) {
                 final aluno = _membros[index];
                 return Card(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   margin: const EdgeInsets.symmetric(
                     horizontal: 15,
                     vertical: 5,

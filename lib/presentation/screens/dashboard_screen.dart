@@ -176,51 +176,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
 
         // Lado Direito: Logout e Perfil
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-              onPressed: _handleLogout,
-            ),
-            const SizedBox(width: 8),
-            PopupMenuButton<String>(
-              offset: const Offset(0, 50),
-              icon: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppTheme.primaryNeon, Colors.blue],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: const CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppTheme.darkBackground,
-                  child: Icon(Icons.person, color: Colors.white, size: 20),
-                ),
+        Expanded(
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                onPressed: _handleLogout,
               ),
-              onSelected: (value) {
-                if (value == 'admin') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AdminTreinoScreen(),
+
+              PopupMenuButton<String>(
+                offset: const Offset(0, 50),
+                icon: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppTheme.primaryNeon, Colors.blue],
                     ),
-                  );
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'perfil', child: Text("Meu Perfil")),
-                const PopupMenuItem(
-                  value: 'admin',
-                  child: Text(
-                    "Painel do Professor",
-                    style: TextStyle(color: AppTheme.primaryNeon),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const CircleAvatar(
+                    radius: 10,
+                    backgroundColor: AppTheme.darkBackground,
+                    child: Icon(Icons.person, color: Colors.white, size: 10),
                   ),
                 ),
-              ],
-            ),
-          ],
+                onSelected: (value) {
+                  if (value == 'admin') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminTreinoScreen(),
+                      ),
+                    );
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'perfil',
+                    child: Text("Meu Perfil"),
+                  ),
+                  const PopupMenuItem(
+                    value: 'admin',
+                    child: Text(
+                      "Painel do Professor",
+                      style: TextStyle(color: AppTheme.primaryNeon),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -322,7 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: _bentoItem(
             "Gestão",
             Icons.admin_panel_settings,
-            "Cadastrar Treinos",
+            "Treinos",
             Colors.tealAccent,
           ),
         ),
@@ -334,7 +339,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: _bentoItem(
             "Grupos",
             Icons.group_add,
-            "Cadastro de Grupos",
+            "Grupos",
             Colors.tealAccent,
           ),
         ),
@@ -377,21 +382,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(
             "Pronto para o treino",
             style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      MembrosGrupoScreen(grupoId: '', nomeGrupo: ''),
-                ),
-              );
-            },
-            child: Text(
-              'Meus Grupos',
-              style: TextStyle(fontSize: 15, color: Colors.amber),
-            ),
           ),
         ],
       ),
