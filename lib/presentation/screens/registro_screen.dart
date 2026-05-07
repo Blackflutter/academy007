@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../data/models/aluno_model.dart';
-import '../../data/repositories/aluno_repository.dart';
-import 'dashboard_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dashboard_screen.dart'; // Certifique-se que o caminho está correto
 
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
@@ -11,21 +10,33 @@ class RegistroScreen extends StatefulWidget {
 }
 
 class _RegistroScreenState extends State<RegistroScreen> {
+  final _supabase = Supabase.instance.client;
+
+  // 1. CONTROLLERS
+  String _cargoSelecionado = 'aluno'; // Inicia como aluno
+
   final TextEditingController _nomeController = TextEditingController();
+  final TextEditingController _idadeController = TextEditingController();
+  final TextEditingController _cpfController = TextEditingController();
+  final TextEditingController _whatsappController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
-  final AlunoRepository _repository = AlunoRepository();
 
-  // Dados do Perfil
+  // Novos campos para Academia
+  final TextEditingController _cnpjController = TextEditingController();
+  final TextEditingController _nomeAcademiaController = TextEditingController();
+  final TextEditingController _enderecoController = TextEditingController();
+  final TextEditingController _anoFundacaoController = TextEditingController();
+
+  // 2. ESTADO DOS DADOS
   double _peso = 75.0;
   double _altura = 1.75;
   bool _isLoading = false;
-
-  // Controle de Fluxo: 0 = Físico, 1 = Anamnese, 2 = E-mail/Senha
   int _etapaAtual = 0;
   int _perguntaIndex = 0;
-  Map<String, dynamic> _respostasAnamnese = {};
+  final Map<String, dynamic> _respostasAnamnese = {};
 
+  // 3. LISTA DE PERGUNTAS (10 PERGUNTAS)
   final List<Map<String, dynamic>> _perguntas = [
     {
       "id": "objetivo",
@@ -82,62 +93,109 @@ class _RegistroScreenState extends State<RegistroScreen> {
   @override
   void dispose() {
     _nomeController.dispose();
+    _idadeController.dispose();
+    _cpfController.dispose();
+    _whatsappController.dispose();
     _emailController.dispose();
     _senhaController.dispose();
+    _cnpjController.dispose();
+    _nomeAcademiaController.dispose();
+    _enderecoController.dispose();
+    _anoFundacaoController.dispose();
     super.dispose();
   }
 
+  // 4. LÓGICA DE NAVEGAÇÃO E SALVAMENTO
   void _proximoPasso() {
     if (_nomeController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Digite seu nome")));
+      _showSnackBar("O nome é obrigatório");
       return;
     }
-    setState(() => _etapaAtual = 1);
+    setState(() {
+      if (_cargoSelecionado == 'professor') {
+        _etapaAtual = 2; // Pula Anamnese e vai para Auth
+      } else {
+        if (_idadeController.text.isEmpty || _cpfController.text.isEmpty) {
+          _showSnackBar("Idade e CPF são obrigatórios");
+          return;
+        }
+        _etapaAtual = 1; // Vai para Anamnese
+      }
+    });
+  }
+
+  void _showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   Future<void> _finalizarTudo() async {
-    if (_emailController.text.isEmpty || _senhaController.text.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("E-mail válido e senha de 6 dígitos são obrigatórios"),
-        ),
-      );
-      return;
-    }
-
     setState(() => _isLoading = true);
     try {
-      final novoAluno = AlunoModel(
-        nome: _nomeController.text,
-        peso: _peso,
-        altura: _altura,
-        categoriaId: 1,
-        anamnese: _respostasAnamnese,
+      // 1. Criar Auth SIMPLES (Sem metadados complexos agora para evitar o erro 422)
+      final AuthResponse res = await _supabase.auth.signUp(
+        email: _emailController.text.trim(),
+        password: _senhaController.text.trim(),
       );
 
-      // Aqui o seu repository cria o Auth e depois o registro na tabela 'perfis'
-      await _repository.salvarOuAtualizarPerfil(
-        novoAluno,
-        email: _emailController.text,
-        senha: _senhaController.text,
-      );
+      if (res.user != null) {
+        final userId = res.user!.id;
+        int? novaAcademiaId;
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        );
+        // 2. Se for ACADEMIA, cria a empresa PRIMEIRO
+        if (_cargoSelecionado == 'professor') {
+          final academiaData = await _supabase
+              .from('academias')
+              .insert({
+                'nome': _nomeAcademiaController.text.trim(),
+                'cnpj': _cnpjController.text.trim(),
+                'endereco': _enderecoController.text.trim(),
+                'responsavel_id': userId,
+              })
+              .select()
+              .single();
+
+          novaAcademiaId = academiaData['id'];
+        }
+
+        // 3. Salva o Perfil na tabela 'perfis'
+        // Se der erro aqui, o problema é uma coluna no banco que não aceita nulo
+        await _supabase.from('perfis').insert({
+          'id': userId,
+          'nome': _nomeController.text.trim(),
+          'email': _emailController.text.trim(),
+          'cargo': _cargoSelecionado,
+          'academia_id': novaAcademiaId,
+          'telefone': _whatsappController.text.trim(),
+          'cpf': _cpfController.text
+              .trim(), // Certifique-se que o banco aceita nulo se for academia
+          'idade': int.tryParse(_idadeController.text),
+          // Mude para os nomes que você definiu no início do seu State
+          'peso_atual': _cargoSelecionado == 'aluno' ? _peso : null,
+          'altura': _cargoSelecionado == 'aluno' ? _altura : null,
+          'anamnese': _cargoSelecionado == 'aluno' ? _respostasAnamnese : null,
+          'categoria_id': 1,
+        });
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+          );
+        }
       }
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Erro ao cadastrar: $e")));
+      debugPrint("ERRO DETALHADO: $e");
+      if (mounted) _showSnackBar("Erro ao salvar: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // Melhore o SnackBar para ver as cores
+  void _showSnackBar1(String msg, {Color color = Colors.redAccent}) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 
   @override
@@ -154,19 +212,19 @@ class _RegistroScreenState extends State<RegistroScreen> {
   }
 
   Widget _renderizarEtapa() {
-    if (_etapaAtual == 0) return _buildDadosFisicos();
+    if (_etapaAtual == 0) return _buildDadosIniciais();
     if (_etapaAtual == 1) return _buildAnamnese();
     return _buildAcessoAuth();
   }
 
-  // ETAPA 1: NOME, PESO, ALTURA
-  Widget _buildDadosFisicos() {
+  // ETAPA 0: DADOS INICIAIS (DINÂMICO)
+  Widget _buildDadosIniciais() {
     double imc = _peso / (_altura * _altura);
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 40),
+          const SizedBox(height: 20),
           const Text(
             "Dados Iniciais",
             style: TextStyle(
@@ -176,44 +234,113 @@ class _RegistroScreenState extends State<RegistroScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          TextField(
-            controller: _nomeController,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              labelText: "Nome",
-              filled: true,
-              fillColor: Colors.white10,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
+
+          // SELETOR NEON
+          Row(
+            children: [
+              _seletorPerfilBtn("SOU ALUNO", 'aluno'),
+              const SizedBox(width: 10),
+              _seletorPerfilBtn("SOU ACADEMIA", 'professor'),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          _inputFielCustom(
+            _cargoSelecionado == 'aluno' ? "Seu Nome" : "Nome do Responsável",
+            _nomeController,
+            TextInputType.name,
+          ),
+          const SizedBox(height: 15),
+
+          if (_cargoSelecionado == 'aluno') ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _inputFielCustom(
+                    "Idade",
+                    _idadeController,
+                    TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: _inputFielCustom(
+                    "CPF",
+                    _cpfController,
+                    TextInputType.number,
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 15),
+            _inputFielCustom(
+              "WhatsApp",
+              _whatsappController,
+              TextInputType.phone,
+            ),
+            const SizedBox(height: 20),
+            _cardIMC(imc),
+            _sliderWidget(
+              "Peso",
+              "${_peso.toStringAsFixed(1)} kg",
+              _peso,
+              40,
+              150,
+              (v) => setState(() => _peso = v),
+            ),
+            _sliderWidget(
+              "Altura",
+              "${_altura.toStringAsFixed(2)} m",
+              _altura,
+              1.2,
+              2.2,
+              (v) => setState(() => _altura = v),
+            ),
+          ] else ...[
+            _inputFielCustom(
+              "Nome da Academia",
+              _nomeAcademiaController,
+              TextInputType.text,
+            ),
+            const SizedBox(height: 15),
+            _inputFielCustom("CNPJ", _cnpjController, TextInputType.number),
+            const SizedBox(height: 15),
+            _inputFielCustom(
+              "Endereço Completo",
+              _enderecoController,
+              TextInputType.streetAddress,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _inputFielCustom(
+                    "Ano Fundação",
+                    _anoFundacaoController,
+                    TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _inputFielCustom(
+                    "WhatsApp Comercial",
+                    _whatsappController,
+                    TextInputType.phone,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 30),
-          _cardIMC(imc),
-          _slider(
-            "Peso",
-            "${_peso.toStringAsFixed(1)} kg",
-            _peso,
-            40,
-            150,
-            (v) => setState(() => _peso = v),
-          ),
-          _slider(
-            "Altura",
-            "${_altura.toStringAsFixed(2)} m",
-            _altura,
-            1.2,
-            2.2,
-            (v) => setState(() => _altura = v),
-          ),
-          const SizedBox(height: 40),
           _botaoAcao("AVANÇAR", _proximoPasso),
+          const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  // ETAPA 2: AS 10 PERGUNTAS DE SAÚDE
+  // ETAPA 1: ANAMNESE (APENAS ALUNO)
   Widget _buildAnamnese() {
     var p = _perguntas[_perguntaIndex];
     return Column(
@@ -221,12 +348,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
         const SizedBox(height: 40),
         LinearProgressIndicator(
           value: (_perguntaIndex + 1) / 10,
-          color: Theme.of(context).primaryColor,
-        ),
-        const SizedBox(height: 20),
-        Text(
-          "Pergunta ${_perguntaIndex + 1}/10",
-          style: const TextStyle(color: Colors.grey),
+          color: const Color(0xFF00FF00),
         ),
         const SizedBox(height: 20),
         Text(
@@ -258,140 +380,181 @@ class _RegistroScreenState extends State<RegistroScreen> {
                   if (_perguntaIndex < 9)
                     _perguntaIndex++;
                   else
-                    _etapaAtual = 2; // Vai para Auth
+                    _etapaAtual = 2;
                 }),
                 child: Text(
                   p['ops'][i],
-                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                  style: const TextStyle(color: Colors.white),
                 ),
               ),
             ),
           ),
         ),
-        if (_perguntaIndex > 0)
-          TextButton(
-            onPressed: () => setState(() => _perguntaIndex--),
-            child: const Text("Voltar pergunta"),
-          ),
       ],
     );
   }
 
-  // ETAPA 3: E-MAIL E SENHA
+  // ETAPA 2: ACESSO
   Widget _buildAcessoAuth() {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        const SizedBox(height: 40),
         const Text(
-          "Crie sua Conta",
+          "Configurar Acesso",
           style: TextStyle(
             color: Colors.white,
             fontSize: 28,
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 10),
-        const Text(
-          "Para salvar seu histórico e treinos",
-          style: TextStyle(color: Colors.grey),
-        ),
-        const SizedBox(height: 30),
-        TextField(
-          controller: _emailController,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            labelText: "E-mail",
-            labelStyle: TextStyle(color: Colors.grey),
-          ),
-        ),
-        const SizedBox(height: 15),
-        TextField(
-          controller: _senhaController,
-          obscureText: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            labelText: "Senha (mín. 6 dígitos)",
-            labelStyle: TextStyle(color: Colors.grey),
-          ),
-        ),
         const SizedBox(height: 40),
-        _botaoAcao("FINALIZAR CADASTRO", _finalizarTudo),
+        _inputFielCustom(
+          "E-mail",
+          _emailController,
+          TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 20),
+        _inputFielCustom(
+          "Senha",
+          _senhaController,
+          TextInputType.visiblePassword,
+        ),
+        const SizedBox(height: 50),
+        _botaoAcao("CONCLUIR CADASTRO", _finalizarTudo, loading: _isLoading),
+        TextButton(
+          onPressed: () => setState(
+            () => _etapaAtual = _cargoSelecionado == 'professor' ? 0 : 1,
+          ),
+          child: const Text("Voltar", style: TextStyle(color: Colors.grey)),
+        ),
       ],
     );
   }
 
-  // Widgets Auxiliares
-  Widget _cardIMC(double imc) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(20),
-    margin: const EdgeInsets.only(bottom: 20),
-    decoration: BoxDecoration(
-      color: Colors.white10,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Column(
-      children: [
-        const Text("IMC", style: TextStyle(color: Colors.grey)),
-        Text(
-          imc.toStringAsFixed(1),
-          style: TextStyle(
-            fontSize: 48,
-            color: Theme.of(context).primaryColor,
-            fontWeight: FontWeight.bold,
+  // WIDGETS AUXILIARES
+  Widget _seletorPerfilBtn(String label, String cargo) {
+    bool sel = _cargoSelecionado == cargo;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _cargoSelecionado = cargo),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          decoration: BoxDecoration(
+            color: sel ? const Color(0xFF00FF00) : Colors.white10,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: sel ? Colors.black : Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-      ],
-    ),
-  );
-  Widget _slider(
-    String l,
-    String v,
-    double val,
-    double min,
-    double max,
-    Function(double) n,
-  ) => Column(
-    children: [
-      Row(
+      ),
+    );
+  }
+
+  Widget _inputFielCustom(
+    String label,
+    TextEditingController controller,
+    TextInputType type,
+  ) {
+    return TextField(
+      controller: controller,
+      keyboardType: type,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.grey),
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.05),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
+  Widget _botaoAcao(String label, VoidCallback onTap, {bool loading = false}) {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF00FF00),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+        ),
+        onPressed: loading ? null : onTap,
+        child: loading
+            ? const CircularProgressIndicator(color: Colors.black)
+            : Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _cardIMC(double imc) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(l, style: const TextStyle(color: Colors.white)),
+          const Text("IMC Estimado", style: TextStyle(color: Colors.white)),
           Text(
-            v,
+            imc.toStringAsFixed(1),
             style: const TextStyle(
-              color: Colors.white,
+              color: Color(0xFF00FF00),
+              fontSize: 34,
               fontWeight: FontWeight.bold,
             ),
           ),
         ],
       ),
-      Slider(
-        value: val,
-        min: min,
-        max: max,
-        activeColor: Theme.of(context).primaryColor,
-        onChanged: n,
-      ),
-    ],
-  );
-  Widget _botaoAcao(String t, VoidCallback f) => SizedBox(
-    width: double.infinity,
-    height: 60,
-    child: ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Theme.of(context).primaryColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      ),
-      onPressed: _isLoading ? null : f,
-      child: _isLoading
-          ? const CircularProgressIndicator(color: Colors.black)
-          : Text(
-              t,
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-    ),
-  );
+    );
+  }
+
+  Widget _sliderWidget(
+    String label,
+    String value,
+    double val,
+    double min,
+    double max,
+    Function(double) onChanged,
+  ) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.grey)),
+              Text(value, style: const TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        Slider(
+          value: val,
+          min: min,
+          max: max,
+          activeColor: const Color(0xFF00FF00),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
 }

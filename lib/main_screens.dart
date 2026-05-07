@@ -1,6 +1,6 @@
-import 'package:academy007/presentation/screens/cadastro_screen.dart';
 import 'package:academy007/presentation/screens/dashboard_screen.dart';
-import 'package:academy007/presentation/screens/historico_screen.dart';
+import 'package:academy007/presentation/screens/historico_treino_aluno.dart';
+import 'package:academy007/presentation/screens/nutricao_screen.dart';
 import 'package:academy007/presentation/screens/perfil_screen.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
@@ -18,8 +18,8 @@ class _MainScreenState extends State<MainScreen> {
   // Lista das abas do aplicativo
   final List<Widget> _paginas = [
     const DashboardScreen(), // Aba 1: Resumo e Progresso
-    const HistoricoScreen(), // Aba 2: Lista de Categorias
-    const CadastroScreen(), // Aba 3: Histórico detalhado
+    const NutricaoScreen(), // Aba 2: Lista de Categorias
+    const HistoricoAlunosScreen(), // Aba 3: Histórico detalhado
     const PerfilScreen(), // Aba 4: Perfil e Configurações
   ];
 

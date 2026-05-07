@@ -5,19 +5,15 @@ class AlunoRepository {
   final _supabase = Supabase.instance.client;
 
   /// Salva ou atualiza os dados básicos do perfil do aluno.
-  /// Utiliza 'upsert' para garantir que o registro seja vinculado ao UID da Auth.
   Future<void> salvarOuAtualizarPerfil(
     AlunoModel aluno, {
     required String email,
     required String senha,
   }) async {
     try {
-      // 1. Verificar se o usuário já está logado (Atualização)
-      // ou se precisa criar conta (Novo Cadastro)
       var user = _supabase.auth.currentUser;
 
       if (user == null) {
-        // CADASTRO NOVO: Cria o acesso no Supabase Auth primeiro
         final AuthResponse res = await _supabase.auth.signUp(
           email: email,
           password: senha,
@@ -27,19 +23,21 @@ class AlunoRepository {
 
       if (user == null) throw 'Falha ao processar autenticação.';
 
-      // 2. Agora com o UID em mãos (user.id), salvamos na tabela 'perfis'
-      // O 'upsert' resolve tanto o primeiro cadastro quanto atualizações futuras
+      // AQUI ESTAVA O PROBLEMA: ADICIONAMOS OS CAMPOS NO UPSERT
       await _supabase.from('perfis').upsert({
         'id': user.id,
         'nome': aluno.nome,
+        'idade': aluno.idade, // <--- ADICIONADO
+        'cpf': aluno.cpf, // <--- ADICIONADO
+        'telefone': aluno
+            .telefone, // <--- ADICIONADO (verifique se no banco é 'telefone' ou 'whatsapp')
         'peso_atual': aluno.peso,
         'altura': aluno.altura,
         'categoria_id': aluno.categoriaId,
         'email': user.email,
-        'anamnese': aluno.anamnese, // <--- SALVANDO AS 10 PERGUNTAS AQUI
+        'anamnese': aluno.anamnese,
       });
 
-      // 3. Registra no histórico de peso para o gráfico
       await registrarNovoPeso(aluno.peso);
     } catch (e) {
       throw 'Erro no processo de cadastro: $e';
@@ -51,17 +49,13 @@ class AlunoRepository {
     final user = _supabase.auth.currentUser;
     if (user == null) return null;
 
-    try {
-      final data = await _supabase
-          .from('perfis')
-          .select()
-          .eq('id', user.id)
-          .single();
-      return data;
-    } catch (e) {
-      // Retorna null se o perfil ainda não existir
-      return null;
-    }
+    final response = await _supabase
+        .from('perfis')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    return response;
   }
 
   /// Registra um novo peso na tabela de histórico para alimentar o gráfico de evolução.

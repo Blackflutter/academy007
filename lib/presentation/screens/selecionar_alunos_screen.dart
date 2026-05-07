@@ -32,7 +32,10 @@ class _SelecionarAlunosScreenState extends State<SelecionarAlunosScreen> {
   // Carrega todos os alunos e também quem já está no grupo
   Future<void> _carregarDadosIniciais() async {
     try {
+      // Busca todos os alunos da tabela perfis
       final todasAsPessoas = await _repository.listarTodosAlunos();
+
+      // Busca apenas os IDs de quem já está NESTE grupo
       final membrosDoGrupo = await _repository.buscarIdsAlunosNoGrupo(
         widget.grupoId,
       );
@@ -40,11 +43,13 @@ class _SelecionarAlunosScreenState extends State<SelecionarAlunosScreen> {
       if (mounted) {
         setState(() {
           _alunos = todasAsPessoas;
-          _idsMembrosAtuais = membrosDoGrupo;
+          _idsMembrosAtuais =
+              membrosDoGrupo; // Agora os tipos batem (List<String>)
           _isLoading = false;
         });
       }
     } catch (e) {
+      debugPrint("Erro ao carregar dados: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -111,7 +116,7 @@ class _SelecionarAlunosScreenState extends State<SelecionarAlunosScreen> {
                 final bool jaEhMembro = _idsMembrosAtuais.contains(alunoId);
 
                 return Card(
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                   margin: const EdgeInsets.symmetric(
                     horizontal: 15,
                     vertical: 5,

@@ -1,9 +1,14 @@
 import 'package:academy007/main_screens.dart';
 import 'package:academy007/presentation/screens/registro_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Importante para travar orientação
+import 'package:flutter/services.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/auth_repository.dart';
+
+// IMPORTANTE: Se essas telas não existirem ainda, o Flutter dará erro.
+// Se ainda não criou, aponte temporariamente todas para MainScreen()
+// import 'package:academy007/presentation/screens/admin_main_screen.dart';
+// import 'package:academy007/presentation/screens/individual_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,8 +28,17 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Força a orientação sempre para Retrato (Portrait)
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _handleLogin() async {
@@ -39,58 +53,75 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // 1. Faz o login no Supabase
       await _authRepo.signIn(email, password);
+
+      // 2. Busca o perfil (cargo e academia_id)
+      final userProfile = await _authRepo.getUserProfile();
+
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MainScreen()),
-        );
+        // 3. Lógica de Redirecionamento (Matriz/Filial)
+        final cargo = userProfile['cargo'];
+        final academiaId = userProfile['academia_id'];
+
+        if (cargo == 'professor' || cargo == 'dono') {
+          // TODO: Criar a AdminMainScreen
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MainScreen(),
+            ), // Troque pela AdminMainScreen quando criar
+          );
+        } else if (academiaId == null) {
+          // Aluno Individual
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MainScreen(),
+            ), // Troque pela IndividualMainScreen quando criar
+          );
+        } else {
+          // Aluno vinculado à Academia
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const MainScreen()),
+          );
+        }
       }
     } catch (e) {
-      if (mounted) _showSnackBar("Erro ao entrar: $e");
+      if (mounted) _showSnackBar(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black, // Garante fundo escuro para o tema neon
       body: SafeArea(
         child: Center(
-          // Garante centralização vertical se sobrar espaço
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 40.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.center, // Centraliza os itens
               children: [
-                // LOGO NO TOPO
+                // LOGO
                 Image.asset(
-                  'assets/images/logo.jpg', // Certifique-se de ter a logo no pubspec.yaml
+                  'assets/images/logo.jpg',
                   height: 100,
                   errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.account_balance_wallet_outlined,
+                    Icons.fitness_center,
                     size: 80,
-                    color: Color.fromARGB(255, 43, 66, 39),
+                    color: AppTheme.primaryNeon,
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // NOME ACEMEDIA CENTRALIZADO
                 const Text(
                   "ACADEMY007",
-                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 24,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                     color: Colors.white,
                     letterSpacing: 1.5,
                   ),
@@ -101,48 +132,37 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 50),
 
-                // INPUT E-MAIL ARREDONDADO
+                // E-MAIL
                 TextField(
                   controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: "E-mail",
+                    hintStyle: const TextStyle(color: Colors.grey),
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    fillColor: Colors.white.withOpacity(0.05),
                     prefixIcon: const Icon(
                       Icons.email_outlined,
                       color: AppTheme.primaryNeon,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 18,
-                      horizontal: 20,
-                    ),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        30,
-                      ), // Cantos arredondados
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
+                      borderSide: BorderSide.none,
                     ),
                   ),
                 ),
                 const SizedBox(height: 20),
 
-                // INPUT SENHA ARREDONDADO
+                // SENHA
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: "Senha",
+                    hintStyle: const TextStyle(color: Colors.grey),
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    fillColor: Colors.white.withOpacity(0.05),
                     prefixIcon: const Icon(
                       Icons.lock_outline,
                       color: AppTheme.primaryNeon,
@@ -157,79 +177,48 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 18,
-                      horizontal: 20,
-                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30),
                       borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 40),
 
-                // BOTÃO DE LOGIN ARREDONDADO
+                // BOTÃO ENTRAR
                 SizedBox(
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryNeon,
-                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
                     onPressed: _isLoading ? null : _handleLogin,
                     child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.black,
-                              strokeWidth: 2,
-                            ),
-                          )
+                        ? const CircularProgressIndicator(color: Colors.black)
                         : const Text(
                             "ENTRAR",
                             style: TextStyle(
                               color: Colors.black,
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
                             ),
                           ),
                   ),
                 ),
-
                 const SizedBox(height: 25),
+
+                // BOTÃO REGISTRO
                 TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const RegistroScreen()),
-                    );
-                  },
-                  child: RichText(
-                    text: const TextSpan(
-                      text: "Ainda não tem conta? ",
-                      style: TextStyle(color: Colors.grey),
-                      children: [
-                        TextSpan(
-                          text: "Cadastre-se",
-                          style: TextStyle(
-                            color: AppTheme.primaryNeon,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const RegistroScreen()),
+                  ),
+                  child: const Text(
+                    "Não tem conta? Cadastre-se",
+                    style: TextStyle(color: Colors.white70),
                   ),
                 ),
               ],

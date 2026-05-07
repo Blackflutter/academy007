@@ -1,11 +1,11 @@
 import 'package:academy007/presentation/screens/admin_treino_screen.dart';
-import 'package:academy007/presentation/screens/criar_grupo_screen.dart';
-import 'package:academy007/presentation/screens/membros_grupo_screen.dart';
+import 'package:academy007/presentation/screens/historico_treino_aluno.dart';
 import 'package:academy007/presentation/screens/treino_grupos_screen.dart';
 import 'package:academy007/presentation/screens/treino_screen.dart';
 import 'package:academy007/presentation/widgets/custom_drawer.dart';
 import 'package:academy007/presentation/widgets/evolucao_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/aluno_repository.dart';
@@ -24,9 +24,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final supabase = Supabase.instance.client;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // Busca dados completos incluindo a academia via JOIN
+  Future<Map<String, dynamic>?> _buscarPerfilCompleto() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      // Busca o perfil com os dados da academia (usando Left Join)
+      final data = await supabase
+          .from('perfis')
+          .select('*, academias(*)')
+          .eq('id', user.id)
+          .maybeSingle(); // Retorna null em vez de dar erro se não achar na hora
+
+      return data;
+    } catch (e) {
+      debugPrint("Erro ao buscar dados: $e");
+      return null;
+    }
+  }
+
   void _mostrarDialogoPeso(BuildContext context) {
     final controller = TextEditingController();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -50,7 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 );
                 if (context.mounted) {
                   Navigator.pop(context);
-                  setState(() {}); // Recarrega a Dashboard com o novo peso
+                  setState(() {});
                 }
               }
             },
@@ -61,7 +80,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Função de Logout
   Future<void> _handleLogout() async {
     await supabase.auth.signOut();
     if (mounted) {
@@ -76,12 +94,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      key: _scaffoldKey, // Chave essencial para o IconButton abrir o Drawer
-      drawer: const CustomDrawer(), // Menu lateral
-      backgroundColor: AppTheme.darkBackground, // Garante o fundo padrão
+      key: _scaffoldKey,
+      drawer: const CustomDrawer(),
+      backgroundColor: AppTheme.darkBackground,
       body: SafeArea(
         child: FutureBuilder<Map<String, dynamic>?>(
-          future: _repository.buscarMeuPerfil(),
+          future: _buscarPerfilCompleto(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -90,15 +108,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }
 
             final dados = snapshot.data;
+            if (dados == null)
+              return const Center(child: Text("Perfil não encontrado"));
 
-            // Cálculo do IMC
+            final bool isProfessor = dados['cargo'] == 'professor';
+
             double imc = 0;
-            if (dados != null &&
+            if (!isProfessor &&
                 dados['peso_atual'] != null &&
                 dados['altura'] != null) {
               double peso = (dados['peso_atual'] as num).toDouble();
               double altura = (dados['altura'] as num).toDouble();
-              imc = peso / (altura * altura);
+              if (altura > 0) imc = peso / (altura * altura);
             }
 
             return SingleChildScrollView(
@@ -106,34 +127,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(dados?['nome'] ?? "Atleta"),
+                  _buildHeader(dados['nome'] ?? "Atleta"),
                   const SizedBox(height: 30),
-                  _buildIMCCard(context, imc),
+
+                  // Lógica Matriz/Filial: Mostra Academia para Professor ou IMC para Aluno
+                  isProfessor
+                      ? _buildAcademiaCard(dados['academias'])
+                      : _buildIMCCard(context, imc),
+
                   const SizedBox(height: 30),
-                  const Text(
-                    "Seu Ecossistema",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    isProfessor ? "Gestão da Unidade" : "Seu Ecossistema",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 15),
-                  const ViewTreinoGrupoWidget(),
-                  // Adicione aqui
-                  _buildBentoGrid(dados),
+
+                  if (!isProfessor) const ViewTreinoGrupoWidget(),
+
+                  _buildBentoGrid(dados, isProfessor),
+
                   const SizedBox(height: 30),
-                  _buildActionCard(),
-                  const Text(
-                    "Sua Evolução",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 15),
-                  FutureBuilder<List<Map<String, dynamic>>>(
-                    future: _repository.buscarHistoricoPeso(),
-                    builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
-                        return const LinearProgressIndicator();
-                      }
-                      return EvolucaoChart(historico: snapshot.data!);
-                    },
-                  ),
+                  if (!isProfessor) ...[
+                    _buildActionCard(),
+                    const Text(
+                      "Sua Evolução",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _repository.buscarHistoricoPeso(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData)
+                          return const LinearProgressIndicator();
+                        return EvolucaoChart(historico: snapshot.data!);
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 30),
                 ],
               ),
@@ -148,7 +183,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Lado Esquerdo: Menu e Boas-vindas
         Row(
           children: [
             IconButton(
@@ -174,60 +208,107 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              onPressed: _handleLogout,
+            ),
+            _buildProfilePopup(),
+          ],
+        ),
+      ],
+    );
+  }
 
-        // Lado Direito: Logout e Perfil
-        Expanded(
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                onPressed: _handleLogout,
-              ),
-
-              PopupMenuButton<String>(
-                offset: const Offset(0, 50),
-                icon: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppTheme.primaryNeon, Colors.blue],
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const CircleAvatar(
-                    radius: 10,
-                    backgroundColor: AppTheme.darkBackground,
-                    child: Icon(Icons.person, color: Colors.white, size: 10),
-                  ),
-                ),
-                onSelected: (value) {
-                  if (value == 'admin') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AdminTreinoScreen(),
-                      ),
-                    );
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'perfil',
-                    child: Text("Meu Perfil"),
-                  ),
-                  const PopupMenuItem(
-                    value: 'admin',
-                    child: Text(
-                      "Painel do Professor",
-                      style: TextStyle(color: AppTheme.primaryNeon),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+  Widget _buildProfilePopup() {
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 50),
+      icon: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [AppTheme.primaryNeon, Colors.blue]),
+          shape: BoxShape.circle,
+        ),
+        child: const CircleAvatar(
+          radius: 10,
+          backgroundColor: AppTheme.darkBackground,
+          child: Icon(Icons.person, color: Colors.white, size: 10),
+        ),
+      ),
+      onSelected: (value) {
+        if (value == 'admin') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminTreinoScreen()),
+          );
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'perfil', child: Text("Meu Perfil")),
+        const PopupMenuItem(
+          value: 'admin',
+          child: Text(
+            "Painel do Professor",
+            style: TextStyle(color: AppTheme.primaryNeon),
           ),
         ),
       ],
+    );
+  }
+
+  // NOVO: Card de Academia para o Professor
+  Widget _buildAcademiaCard(Map<String, dynamic>? academia) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(25),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF004D40), Color(0xFF00695C)],
+        ),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "MINHA UNIDADE",
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          Text(
+            academia?['nome'] ?? "Academia Principal",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Text("CÓDIGO: ", style: TextStyle(color: Colors.white60)),
+              Text(
+                academia?['codigo_acesso'] ?? "---",
+                style: const TextStyle(
+                  color: AppTheme.primaryNeon,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy, size: 18, color: Colors.white70),
+                onPressed: () {
+                  Clipboard.setData(
+                    ClipboardData(text: academia?['codigo_acesso'] ?? ""),
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Código copiado!")),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -275,81 +356,110 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBentoGrid(Map<String, dynamic>? dados) {
+  Widget _buildBentoGrid(Map<String, dynamic>? dados, bool isProfessor) {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
       crossAxisSpacing: 12,
       mainAxisSpacing: 12,
-      children: [
-        GestureDetector(
-          onTap: () => _mostrarDialogoPeso(context),
-          child: _bentoItem(
-            "Peso",
-            Icons.monitor_weight_outlined,
-            "${dados?['peso_atual'] ?? 0} kg",
-            Colors.blueAccent,
-          ),
-        ),
-        _bentoItem(
-          "Altura",
-          Icons.height,
-          "${dados?['altura'] ?? 0} m",
-          Colors.orangeAccent,
-        ),
-        _bentoItem(
-          "Idade",
-          Icons.calendar_today,
-          "${dados?['idade'] ?? 0} anos",
-          Colors.purpleAccent,
-        ),
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const NutricaoScreen()),
-          ),
-          child: _bentoItem(
-            "Dieta",
-            Icons.restaurant,
-            "Ver Plano",
-            Colors.redAccent,
-          ),
-        ),
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const TreinoScreen(categoriaId: 1),
-            ), // Use o ID numérico aqui
-          ),
-
-          child: _bentoItem(
-            "Gestão",
-            Icons.admin_panel_settings,
-            "Treinos",
-            Colors.tealAccent,
-          ),
-        ),
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CriarGrupoScreen()),
-          ),
-          child: _bentoItem(
-            "Grupos",
-            Icons.group_add,
-            "Grupos",
-            Colors.tealAccent,
-          ),
-        ),
-      ],
+      childAspectRatio: 1.1,
+      children: isProfessor
+          ? [
+              _bentoItem(
+                "Alunos",
+                Icons.people,
+                "Ver Lista",
+                AppTheme.primaryNeon,
+              ),
+              _bentoItem(
+                "Financeiro",
+                Icons.payments,
+                "Fluxo de Caixa",
+                Colors.blueAccent,
+              ),
+              _bentoItem(
+                "Config",
+                Icons.settings,
+                "Minha Filial",
+                Colors.purpleAccent,
+              ),
+              _bentoItem(
+                "Relatórios",
+                Icons.analytics,
+                "Desempenho",
+                Colors.orangeAccent,
+              ),
+            ]
+          : [
+              GestureDetector(
+                onTap: () => _mostrarDialogoPeso(context),
+                child: _bentoItem(
+                  "Peso",
+                  Icons.monitor_weight_outlined,
+                  "${dados?['peso_atual'] ?? 0} kg",
+                  Colors.blueAccent,
+                ),
+              ),
+              _bentoItem(
+                "Altura",
+                Icons.height,
+                "${dados?['altura'] ?? 0} m",
+                Colors.orangeAccent,
+              ),
+              _bentoItem(
+                "Idade",
+                Icons.calendar_today,
+                "${dados?['idade'] ?? '--'} anos",
+                Colors.purpleAccent,
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const HistoricoAlunosScreen(),
+                  ),
+                ),
+                child: _bentoItem(
+                  "Histórico",
+                  Icons.history,
+                  "Treinos Pagos",
+                  AppTheme.primaryNeon,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NutricaoScreen()),
+                ),
+                child: _bentoItem(
+                  "Dieta",
+                  Icons.restaurant,
+                  "Ver Plano",
+                  Colors.redAccent,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TreinoScreen(categoriaId: 1),
+                  ),
+                ),
+                child: _bentoItem(
+                  "Gestão",
+                  Icons.admin_panel_settings,
+                  "Treinos",
+                  Colors.tealAccent,
+                ),
+              ),
+            ],
     );
   }
 
   Widget _bentoItem(String title, IconData icon, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: AppTheme.glassColor,
         borderRadius: BorderRadius.circular(25),
@@ -358,10 +468,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 30),
-          const SizedBox(height: 10),
-          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: Colors.white,
+            ),
+          ),
         ],
       ),
     );
@@ -369,19 +488,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildActionCard() {
     return Container(
+      margin: const EdgeInsets.only(bottom: 20),
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.primaryNeon.withValues(alpha: 0.1),
+        color: AppTheme.primaryNeon.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: const Row(
         children: [
           Icon(Icons.bolt, color: AppTheme.primaryNeon),
           SizedBox(width: 15),
           Text(
             "Pronto para o treino",
-            style: TextStyle(fontWeight: FontWeight.bold),
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
           ),
         ],
       ),

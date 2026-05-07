@@ -10,6 +10,7 @@ class AnamneseWizard extends StatefulWidget {
 
 class _AnamneseWizardState extends State<AnamneseWizard> {
   final PageController _pageController = PageController();
+  // ignore: prefer_final_fields, unused_field
   int _currentIndex = 0;
 
   // Respostas que serão enviadas de volta

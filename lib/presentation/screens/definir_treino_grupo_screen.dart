@@ -41,10 +41,11 @@ class _DefinirTreinoGrupoScreenState extends State<DefinirTreinoGrupoScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text("Erro: $e")));
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

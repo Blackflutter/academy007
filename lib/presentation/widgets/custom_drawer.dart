@@ -9,21 +9,75 @@ import '../../core/theme/app_theme.dart';
 class CustomDrawer extends StatelessWidget {
   const CustomDrawer({super.key});
 
+  // Função para mostrar o campo de digitação do código
+  void _mostrarDialogVincular(BuildContext context) {
+    final TextEditingController codigoController = TextEditingController();
+    final repo = GrupoRepository();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text(
+          "Vincular Professor",
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: codigoController,
+          style: const TextStyle(color: AppTheme.primaryNeon),
+          decoration: const InputDecoration(
+            hintText: "Digite o código (ex: 3b957a3)",
+            hintStyle: TextStyle(color: Colors.white24),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppTheme.primaryNeon),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("CANCELAR", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryNeon,
+            ),
+            onPressed: () async {
+              try {
+                await repo.vincularAlunoAoGrupo(codigoController.text.trim());
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Sucesso! Grupo vinculado.")),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text("Erro: $e")));
+                }
+              }
+            },
+            child: const Text(
+              "VINCULAR",
+              style: TextStyle(color: Colors.black),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
-
-    // Lógica de acesso restrito definida por você
-    // E-mail: admin@academy007.com | Senha: (validada no login)
-
-    // No build do CustomDrawer, mude temporariamente para:
-    final bool isProfessor = true; // Força a aparecer para qualquer um
+    final bool isProfessor = true; // Mantido conforme seu código
 
     return Drawer(
-      backgroundColor: const Color(0xFF121212), // Fundo Dark Academy007
+      backgroundColor: const Color(0xFF121212),
       child: Column(
         children: [
-          // Cabeçalho dinâmico: Muda conforme o tipo de usuário
           UserAccountsDrawerHeader(
             decoration: BoxDecoration(
               color: isProfessor ? AppTheme.primaryNeon : Colors.blueGrey,
@@ -50,14 +104,23 @@ class CustomDrawer extends StatelessWidget {
             ),
           ),
 
-          // OPÇÕES PÚBLICAS (Todos vêem)
           _drawerItem(
             icon: Icons.dashboard_customize,
             label: "Dashboard Principal",
             onTap: () => Navigator.pop(context),
           ),
 
-          // OPÇÕES EXCLUSIVAS DO PROFESSOR (Bloqueado para alunos)
+          // NOVO ITEM: Vincular Professor (Disponível para todos)
+          _drawerItem(
+            icon: Icons.vpn_key,
+            label: "Vincular ao Professor",
+            color: AppTheme.primaryNeon,
+            onTap: () {
+              Navigator.pop(context);
+              _mostrarDialogVincular(context);
+            },
+          ),
+
           if (isProfessor) ...[
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -98,23 +161,19 @@ class CustomDrawer extends StatelessWidget {
             _drawerItem(
               icon: Icons.analytics,
               label: "Avaliações Diárias",
-              onTap: () {
-                // Futura implementação das avaliações
-                Navigator.pop(context);
-              },
+              onTap: () => Navigator.pop(context),
             ),
           ],
 
           const Divider(color: Colors.white10),
 
-          // OPÇÕES DE CONFIGURAÇÃO
           _drawerItem(
             icon: Icons.settings,
             label: "Configurações",
             onTap: () => Navigator.pop(context),
           ),
 
-          const Spacer(), // Empurra o Sair para o rodapé
+          const Spacer(),
 
           _drawerItem(
             icon: Icons.logout,
@@ -137,7 +196,6 @@ class CustomDrawer extends StatelessWidget {
     );
   }
 
-  // Widget auxiliar para manter o padrão visual dos itens
   Widget _drawerItem({
     required IconData icon,
     required String label,

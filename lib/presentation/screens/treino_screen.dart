@@ -1,9 +1,9 @@
-import 'package:academy007/presentation/screens/cadastro_exercicio_screen.dart';
-import 'package:academy007/presentation/screens/conclusao_exercicio_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import '../../core/theme/app_theme.dart';
 import '../../data/repositories/treino_repository.dart';
+import 'cadastro_exercicio_screen.dart';
+import 'conclusao_exercicio_sheet.dart';
 
 class TreinoScreen extends StatefulWidget {
   final int categoriaId;
@@ -17,7 +17,6 @@ class _TreinoScreenState extends State<TreinoScreen> {
   final TreinoRepository _repository = TreinoRepository();
   late ConfettiController _confettiController;
 
-  // Lista local para podermos remover itens em tempo real
   List<Map<String, dynamic>> _exerciciosRestantes = [];
   bool _isLoading = true;
 
@@ -30,10 +29,9 @@ class _TreinoScreenState extends State<TreinoScreen> {
     _carregarExercicios();
   }
 
-  // Função para carregar e inicializar a lista local
   Future<void> _carregarExercicios() async {
+    setState(() => _isLoading = true);
     try {
-      // No initState ou na função de carregar:
       final dados = await _repository.buscarExerciciosNaoConcluidos(
         widget.categoriaId,
       );
@@ -45,6 +43,46 @@ class _TreinoScreenState extends State<TreinoScreen> {
     } catch (e) {
       debugPrint("Erro ao carregar: $e");
       setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro ao carregar treinos: $e")));
+      }
+    }
+  }
+
+  Future<void> _finalizarExercicio(Map<String, dynamic> exercicio) async {
+    final int exId = exercicio['id'];
+    final String nomeEx = exercicio['nome'];
+
+    try {
+      // 1. Chama o banco de dados
+      await _repository.concluirExercicio(exId);
+
+      // 2. Remove da lista local usando o ID (mais seguro que index)
+      setState(() {
+        _exerciciosRestantes.removeWhere((item) => item['id'] == exId);
+      });
+
+      // 3. Feedback visual
+      if (_exerciciosRestantes.isEmpty) {
+        _confettiController.play();
+      }
+
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (context) => ConclusaoExercicioSheet(nomeExercicio: nomeEx),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro ao salvar: $e")));
+      }
     }
   }
 
@@ -62,7 +100,6 @@ class _TreinoScreenState extends State<TreinoScreen> {
         elevation: 4,
         child: const Icon(Icons.add, color: Colors.black, size: 30),
         onPressed: () async {
-          // Abre a tela de cadastro e espera o retorno
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
@@ -70,29 +107,26 @@ class _TreinoScreenState extends State<TreinoScreen> {
                   CadastroExercicioScreen(categoriaId: widget.categoriaId),
             ),
           );
-
-          // Se retornou 'true', recarrega a lista do banco
-          if (result == true) {
-            _carregarExercicios();
-          }
+          if (result == true) _carregarExercicios();
         },
       ),
-
       appBar: AppBar(
         title: const Text("Treino do Dia"),
         actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 20),
-              child: Text(
-                "Restam: ${_exerciciosRestantes.length}",
-                style: const TextStyle(
-                  color: AppTheme.primaryNeon,
-                  fontWeight: FontWeight.bold,
+          if (!_isLoading && _exerciciosRestantes.isNotEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 20),
+                child: Text(
+                  "Restam: ${_exerciciosRestantes.length}",
+                  style: const TextStyle(
+                    color: AppTheme.primaryNeon,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
       body: Stack(
@@ -103,78 +137,17 @@ class _TreinoScreenState extends State<TreinoScreen> {
                   child: CircularProgressIndicator(color: AppTheme.primaryNeon),
                 )
               : _exerciciosRestantes.isEmpty
-              ? _buildTelaConclusao() // Mostra mensagem se a lista esvaziar
+              ? _buildTelaConclusao()
               : ListView.builder(
                   padding: const EdgeInsets.all(20),
                   itemCount: _exerciciosRestantes.length,
                   itemBuilder: (context, index) {
                     final ex = _exerciciosRestantes[index];
-                    final int exId = ex['id'];
-
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 500),
-                      margin: const EdgeInsets.only(bottom: 15),
-                      decoration: BoxDecoration(
-                        color: AppTheme.glassColor,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        leading: const Icon(
-                          Icons.play_circle_fill,
-                          color: AppTheme.primaryNeon,
-                          size: 40,
-                        ),
-                        title: Text(
-                          ex['nome'],
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        subtitle: Text(
-                          ex['descricao'] ?? "Clique no check para finalizar",
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.done_all, color: Colors.white),
-                          onPressed: () async {
-                            try {
-                              await _repository.concluirExercicio(exId);
-
-                              // REMOVE DA LISTA E ATUALIZA A TELA
-                              setState(() {
-                                _exerciciosRestantes.removeAt(index);
-                              });
-
-                              // Se era o último, solta confete!
-                              if (_exerciciosRestantes.isEmpty) {
-                                _confettiController.play();
-                              }
-
-                              if (mounted) {
-                                showModalBottomSheet(
-                                  // ignore: use_build_context_synchronously
-                                  context: context,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (context) => ConclusaoExercicioSheet(
-                                    nomeExercicio: ex['nome'],
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              debugPrint("Erro: $e");
-                            }
-                          },
-                        ),
-                      ),
-                    );
+                    return _buildCardExercicio(ex);
                   },
                 ),
+
+          // Efeito de Confete
           ConfettiWidget(
             confettiController: _confettiController,
             blastDirectionality: BlastDirectionality.explosive,
@@ -186,33 +159,94 @@ class _TreinoScreenState extends State<TreinoScreen> {
     );
   }
 
-  // Widget simples para mostrar quando o treino acaba
+  Widget _buildCardExercicio(Map<String, dynamic> ex) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      margin: const EdgeInsets.only(bottom: 15),
+      decoration: BoxDecoration(
+        color: AppTheme.glassColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 10,
+        ),
+        leading: const Icon(
+          Icons.fitness_center, // Mudado para ícone de peso
+          color: AppTheme.primaryNeon,
+          size: 35,
+        ),
+        title: Text(
+          ex['nome'],
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 18,
+          ),
+        ),
+        subtitle: Text(
+          ex['descricao'] ?? "Toque no check para finalizar",
+          style: const TextStyle(color: Colors.white70),
+        ),
+        trailing: IconButton(
+          icon: const Icon(
+            Icons.check_circle_outline,
+            color: Colors.white70,
+            size: 30,
+          ),
+          onPressed: () => _finalizarExercicio(ex),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTelaConclusao() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.stars, size: 80, color: AppTheme.primaryNeon),
-          const SizedBox(height: 20),
+          const Icon(
+            Icons.emoji_events,
+            size: 100,
+            color: AppTheme.primaryNeon,
+          ),
+          const SizedBox(height: 24),
           const Text(
-            "TREINO FINALIZADO!",
+            "MISSÃO CUMPRIDA!",
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
               color: Colors.white,
+              letterSpacing: 1.5,
             ),
           ),
+          const SizedBox(height: 8),
           const Text(
-            "Todos os exercícios de hoje foram concluídos.",
-            style: TextStyle(color: Colors.white70),
+            "Você completou todos os exercícios.",
+            style: TextStyle(color: Colors.white70, fontSize: 16),
           ),
-          const SizedBox(height: 30),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryNeon,
+          const SizedBox(height: 40),
+          SizedBox(
+            width: 200,
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryNeon,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                "VOLTAR",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-            onPressed: () => Navigator.pop(context),
-            child: const Text("VOLTAR", style: TextStyle(color: Colors.black)),
           ),
         ],
       ),
