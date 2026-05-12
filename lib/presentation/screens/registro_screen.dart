@@ -12,8 +12,21 @@ class RegistroScreen extends StatefulWidget {
 class _RegistroScreenState extends State<RegistroScreen> {
   final _supabase = Supabase.instance.client;
 
+  // ─── HELPERS DE RESPONSIVIDADE ────────────────────────────────────────────
+  // Retornam valores escalados com base na largura real da tela.
+  // Referência base: 390 px (iPhone 14 / média dos Android modernos).
+  double _rw(BuildContext ctx, double px) =>
+      px * MediaQuery.of(ctx).size.width / 390;
+
+  double _rh(BuildContext ctx, double px) =>
+      px * MediaQuery.of(ctx).size.height / 844;
+
+  double _rf(BuildContext ctx, double sp) =>
+      sp * MediaQuery.of(ctx).size.width / 390;
+  // ──────────────────────────────────────────────────────────────────────────
+
   // 1. CONTROLLERS
-  String _cargoSelecionado = 'aluno'; // Inicia como aluno
+  String _cargoSelecionado = 'aluno';
 
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _idadeController = TextEditingController();
@@ -22,7 +35,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _senhaController = TextEditingController();
 
-  // Novos campos para Academia
+  // Campos para Academia
   final TextEditingController _cnpjController = TextEditingController();
   final TextEditingController _nomeAcademiaController = TextEditingController();
   final TextEditingController _enderecoController = TextEditingController();
@@ -105,7 +118,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
     super.dispose();
   }
 
-  // 4. LÓGICA DE NAVEGAÇÃO E SALVAMENTO
+  // 4. LÓGICA DE NAVEGAÇÃO E SALVAMENTO (inalterada)
   void _proximoPasso() {
     if (_nomeController.text.isEmpty) {
       _showSnackBar("O nome é obrigatório");
@@ -113,13 +126,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
     }
     setState(() {
       if (_cargoSelecionado == 'professor') {
-        _etapaAtual = 2; // Pula Anamnese e vai para Auth
+        _etapaAtual = 2;
       } else {
         if (_idadeController.text.isEmpty || _cpfController.text.isEmpty) {
           _showSnackBar("Idade e CPF são obrigatórios");
           return;
         }
-        _etapaAtual = 1; // Vai para Anamnese
+        _etapaAtual = 1;
       }
     });
   }
@@ -131,7 +144,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   Future<void> _finalizarTudo() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Criar Auth SIMPLES (Sem metadados complexos agora para evitar o erro 422)
+      // 1. Criar Auth
       final AuthResponse res = await _supabase.auth.signUp(
         email: _emailController.text.trim(),
         password: _senhaController.text.trim(),
@@ -141,7 +154,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
         final userId = res.user!.id;
         int? novaAcademiaId;
 
-        // 2. Se for ACADEMIA, cria a empresa PRIMEIRO
+        // 2. Se for Professor/Academia, cria a empresa primeiro
         if (_cargoSelecionado == 'professor') {
           final academiaData = await _supabase
               .from('academias')
@@ -153,27 +166,28 @@ class _RegistroScreenState extends State<RegistroScreen> {
               })
               .select()
               .single();
-
           novaAcademiaId = academiaData['id'];
         }
 
-        // 3. Salva o Perfil na tabela 'perfis'
-        // Se der erro aqui, o problema é uma coluna no banco que não aceita nulo
+        // 3. Salva o Perfil (Ajustado conforme o seu Diagrama)
+        // IMPORTANTE: Verifique se existe o ID 1 na sua tabela 'categorias'
         await _supabase.from('perfis').insert({
           'id': userId,
           'nome': _nomeController.text.trim(),
           'email': _emailController.text.trim(),
-          'cargo': _cargoSelecionado,
-          'academia_id': novaAcademiaId,
+          'cargo': _cargoSelecionado, // 'aluno' ou 'professor'
+          'cpf': _cpfController.text.trim().isEmpty
+              ? null
+              : _cpfController.text.trim(),
           'telefone': _whatsappController.text.trim(),
-          'cpf': _cpfController.text
-              .trim(), // Certifique-se que o banco aceita nulo se for academia
-          'idade': int.tryParse(_idadeController.text),
-          // Mude para os nomes que você definiu no início do seu State
+          'idade': int.tryParse(_idadeController.text.trim()) ?? 0,
           'peso_atual': _cargoSelecionado == 'aluno' ? _peso : null,
           'altura': _cargoSelecionado == 'aluno' ? _altura : null,
           'anamnese': _cargoSelecionado == 'aluno' ? _respostasAnamnese : null,
-          'categoria_id': 1,
+          'academia_id':
+              novaAcademiaId, // Se for aluno, pode ser null inicialmente
+          'categoria_id':
+              1, // <--- CERTIFIQUE-SE QUE ESTE ID EXISTE NA TABELA CATEGORIAS
         });
 
         if (mounted) {
@@ -183,29 +197,47 @@ class _RegistroScreenState extends State<RegistroScreen> {
           );
         }
       }
+    } on AuthException catch (e) {
+      _showSnackBar("Erro na conta: ${e.message}");
     } catch (e) {
-      debugPrint("ERRO DETALHADO: $e");
-      if (mounted) _showSnackBar("Erro ao salvar: $e");
+      debugPrint("ERRO DE BANCO: $e");
+      _showSnackBar("Erro ao salvar perfil: Verifique os dados.");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Melhore o SnackBar para ver as cores
-  void _showSnackBar1(String msg, {Color color = Colors.redAccent}) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
-  }
+  // ─── BUILD ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    // Calcula o padding horizontal de forma responsiva:
+    // telas muito largas (tablet) recebem um padding maior para centralizar.
+    final screenWidth = MediaQuery.of(context).size.width;
+    final hPad = screenWidth > 600
+        ? screenWidth *
+              0.15 // tablet: 15% de cada lado
+        : _rw(context, 25); // celular: ~25 px escalados
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 25),
-          child: _renderizarEtapa(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: hPad,
+                    vertical: _rh(context, 20),
+                  ),
+                  child: IntrinsicHeight(child: _renderizarEtapa()),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -217,40 +249,41 @@ class _RegistroScreenState extends State<RegistroScreen> {
     return _buildAcessoAuth();
   }
 
-  // ETAPA 0: DADOS INICIAIS (DINÂMICO)
+  // ─── ETAPA 0: DADOS INICIAIS ──────────────────────────────────────────────
+
   Widget _buildDadosIniciais() {
     double imc = _peso / (_altura * _altura);
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
-          const Text(
+          SizedBox(height: _rh(context, 20)),
+          Text(
             "Dados Iniciais",
             style: TextStyle(
               color: Colors.white,
-              fontSize: 32,
+              fontSize: _rf(context, 32), // ← responsivo
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: _rh(context, 20)),
 
           // SELETOR NEON
           Row(
             children: [
               _seletorPerfilBtn("SOU ALUNO", 'aluno'),
-              const SizedBox(width: 10),
+              SizedBox(width: _rw(context, 10)),
               _seletorPerfilBtn("SOU ACADEMIA", 'professor'),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: _rh(context, 20)),
 
           _inputFielCustom(
             _cargoSelecionado == 'aluno' ? "Seu Nome" : "Nome do Responsável",
             _nomeController,
             TextInputType.name,
           ),
-          const SizedBox(height: 15),
+          SizedBox(height: _rh(context, 15)),
 
           if (_cargoSelecionado == 'aluno') ...[
             Row(
@@ -262,7 +295,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     TextInputType.number,
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: _rw(context, 10)),
                 Expanded(
                   flex: 2,
                   child: _inputFielCustom(
@@ -273,13 +306,13 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 15),
+            SizedBox(height: _rh(context, 15)),
             _inputFielCustom(
               "WhatsApp",
               _whatsappController,
               TextInputType.phone,
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: _rh(context, 20)),
             _cardIMC(imc),
             _sliderWidget(
               "Peso",
@@ -303,15 +336,15 @@ class _RegistroScreenState extends State<RegistroScreen> {
               _nomeAcademiaController,
               TextInputType.text,
             ),
-            const SizedBox(height: 15),
+            SizedBox(height: _rh(context, 15)),
             _inputFielCustom("CNPJ", _cnpjController, TextInputType.number),
-            const SizedBox(height: 15),
+            SizedBox(height: _rh(context, 15)),
             _inputFielCustom(
               "Endereço Completo",
               _enderecoController,
               TextInputType.streetAddress,
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: _rh(context, 10)),
             Row(
               children: [
                 Expanded(
@@ -321,7 +354,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                     TextInputType.number,
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: _rw(context, 10)),
                 Expanded(
                   child: _inputFielCustom(
                     "WhatsApp Comercial",
@@ -332,47 +365,48 @@ class _RegistroScreenState extends State<RegistroScreen> {
               ],
             ),
           ],
-          const SizedBox(height: 30),
+          SizedBox(height: _rh(context, 30)),
           _botaoAcao("AVANÇAR", _proximoPasso),
-          const SizedBox(height: 10),
+          SizedBox(height: _rh(context, 10)),
         ],
       ),
     );
   }
 
-  // ETAPA 1: ANAMNESE (APENAS ALUNO)
+  // ─── ETAPA 1: ANAMNESE ────────────────────────────────────────────────────
+
   Widget _buildAnamnese() {
     var p = _perguntas[_perguntaIndex];
     return Column(
       children: [
-        const SizedBox(height: 40),
+        SizedBox(height: _rh(context, 40)),
         LinearProgressIndicator(
           value: (_perguntaIndex + 1) / 10,
           color: const Color(0xFF00FF00),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: _rh(context, 20)),
         Text(
           p['q'],
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             color: Colors.white,
-            fontSize: 24,
+            fontSize: _rf(context, 24), // ← responsivo
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 30),
+        SizedBox(height: _rh(context, 30)),
         ...List.generate(
           p['ops'].length,
           (i) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.only(bottom: _rh(context, 12)),
             child: SizedBox(
               width: double.infinity,
-              height: 55,
+              height: _rh(context, 55), // ← altura do botão responsiva
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white10,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(_rw(context, 15)),
                   ),
                 ),
                 onPressed: () => setState(() {
@@ -384,7 +418,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 }),
                 child: Text(
                   p['ops'][i],
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: _rf(context, 15), // ← responsivo
+                  ),
                 ),
               ),
             ),
@@ -394,54 +431,63 @@ class _RegistroScreenState extends State<RegistroScreen> {
     );
   }
 
-  // ETAPA 2: ACESSO
+  // ─── ETAPA 2: ACESSO AUTH ─────────────────────────────────────────────────
+
   Widget _buildAcessoAuth() {
     return Column(
       children: [
-        const SizedBox(height: 40),
-        const Text(
+        SizedBox(height: _rh(context, 40)),
+        Text(
           "Configurar Acesso",
           style: TextStyle(
             color: Colors.white,
-            fontSize: 28,
+            fontSize: _rf(context, 28), // ← responsivo
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 40),
+        SizedBox(height: _rh(context, 40)),
         _inputFielCustom(
           "E-mail",
           _emailController,
           TextInputType.emailAddress,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: _rh(context, 20)),
         _inputFielCustom(
           "Senha",
           _senhaController,
           TextInputType.visiblePassword,
+          isPassword: true,
         ),
-        const SizedBox(height: 50),
+        SizedBox(height: _rh(context, 50)),
         _botaoAcao("CONCLUIR CADASTRO", _finalizarTudo, loading: _isLoading),
         TextButton(
           onPressed: () => setState(
             () => _etapaAtual = _cargoSelecionado == 'professor' ? 0 : 1,
           ),
-          child: const Text("Voltar", style: TextStyle(color: Colors.grey)),
+          child: Text(
+            "Voltar",
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: _rf(context, 14), // ← responsivo
+            ),
+          ),
         ),
       ],
     );
   }
 
-  // WIDGETS AUXILIARES
+  // ─── WIDGETS AUXILIARES ───────────────────────────────────────────────────
+
   Widget _seletorPerfilBtn(String label, String cargo) {
     bool sel = _cargoSelecionado == cargo;
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _cargoSelecionado = cargo),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15),
+          padding: EdgeInsets.symmetric(vertical: _rh(context, 15)),
           decoration: BoxDecoration(
             color: sel ? const Color(0xFF00FF00) : Colors.white10,
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(_rw(context, 15)),
           ),
           child: Text(
             label,
@@ -449,6 +495,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
             style: TextStyle(
               color: sel ? Colors.black : Colors.white,
               fontWeight: FontWeight.bold,
+              fontSize: _rf(
+                context,
+                13,
+              ), // ← responsivo (cabe em telas pequenas)
             ),
           ),
         ),
@@ -456,22 +506,29 @@ class _RegistroScreenState extends State<RegistroScreen> {
     );
   }
 
+  // Adicionei o bool isPassword = false aqui no final do parâmetro
   Widget _inputFielCustom(
     String label,
     TextEditingController controller,
-    TextInputType type,
-  ) {
+    TextInputType type, {
+    bool isPassword = false,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: type,
-      style: const TextStyle(color: Colors.white),
+      obscureText: isPassword, // ← ESSA LINHA FAZ O TEXTO VIRAR ASTERISCO
+      style: TextStyle(color: Colors.white, fontSize: _rf(context, 15)),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.grey),
+        labelStyle: TextStyle(color: Colors.grey, fontSize: _rf(context, 14)),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.05),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: _rw(context, 16),
+          vertical: _rh(context, 14),
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(_rw(context, 15)),
           borderSide: BorderSide.none,
         ),
       ),
@@ -481,12 +538,12 @@ class _RegistroScreenState extends State<RegistroScreen> {
   Widget _botaoAcao(String label, VoidCallback onTap, {bool loading = false}) {
     return SizedBox(
       width: double.infinity,
-      height: 55,
+      height: _rh(context, 55), // ← responsivo
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF00FF00),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(_rw(context, 15)),
           ),
         ),
         onPressed: loading ? null : onTap,
@@ -494,9 +551,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
             ? const CircularProgressIndicator(color: Colors.black)
             : Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
+                  fontSize: _rf(context, 15), // ← responsivo
                 ),
               ),
       ),
@@ -505,20 +563,26 @@ class _RegistroScreenState extends State<RegistroScreen> {
 
   Widget _cardIMC(double imc) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(_rw(context, 20)),
       decoration: BoxDecoration(
         color: Colors.white10,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(_rw(context, 15)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text("IMC Estimado", style: TextStyle(color: Colors.white)),
+          Text(
+            "IMC Estimado",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: _rf(context, 15), // ← responsivo
+            ),
+          ),
           Text(
             imc.toStringAsFixed(1),
-            style: const TextStyle(
-              color: Color(0xFF00FF00),
-              fontSize: 34,
+            style: TextStyle(
+              color: const Color(0xFF00FF00),
+              fontSize: _rf(context, 34), // ← responsivo
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -538,12 +602,24 @@ class _RegistroScreenState extends State<RegistroScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: EdgeInsets.symmetric(vertical: _rh(context, 10)),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: const TextStyle(color: Colors.grey)),
-              Text(value, style: const TextStyle(color: Colors.white)),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: _rf(context, 14), // ← responsivo
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: _rf(context, 14), // ← responsivo
+                ),
+              ),
             ],
           ),
         ),
