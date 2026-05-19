@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/repositories/grupo_repository.dart';
 
 class DefinirTreinoGrupoScreen extends StatefulWidget {
@@ -28,23 +29,51 @@ class _DefinirTreinoGrupoScreenState extends State<DefinirTreinoGrupoScreen> {
 
     setState(() => _isSaving = true);
     try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) throw 'Sessão expirada. Faça login novamente.';
+
+      // 1. Busca dinâmica do ID numérico da academia do professor logado
+      final academiaResponse = await supabase
+          .from('academias')
+          .select('id')
+          .eq('responsavel_id', user.id)
+          .maybeSingle();
+
+      if (academiaResponse == null || academiaResponse['id'] == null) {
+        throw 'Nenhuma academia vinculada ao seu perfil para publicar treinos.';
+      }
+
+      final int academiaIdDinamica = int.parse(
+        academiaResponse['id'].toString(),
+      );
+
+      // 2. Chama o repositório atualizado enviando o academiaId obrigatório
       await _repository.salvarTreinoColetivo(
-        grupoId: widget.grupoId,
+        grupoId: widget.grupoId.toString(),
+        academiaId: academiaIdDinamica, // Injetado com sucesso (bigint)
         titulo: _tituloController.text,
         treino: _treinoController.text,
         dieta: _dietaController.text,
       );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Treino publicado para o grupo!")),
+          const SnackBar(
+            content: Text("Treino publicado para o grupo com sucesso!"),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Erro: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro ao publicar: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

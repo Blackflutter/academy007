@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../data/repositories/grupo_repository.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -15,8 +17,11 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
   double _intensidade = 3;
   bool _isFinalizando = false;
 
-  // Guardamos o Future em uma variável para evitar que o FutureBuilder
-  // dispare toda vez que o slider se mover (setState)
+  // Estado para armazenar o arquivo binário da foto (.png)
+  Uint8List? _imagemBytes;
+  String? _nomeArquivo;
+  bool _carregandoImagem = false;
+
   late Future<Map<String, dynamic>?> _treinoFuture;
 
   @override
@@ -28,7 +33,31 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
   void _atualizarLista() {
     setState(() {
       _treinoFuture = repository.buscarTreinoDoMeuGrupo();
+      _imagemBytes = null;
+      _nomeArquivo = null;
     });
+  }
+
+  // Abre a caixa de diálogo para escolher a imagem
+  Future<void> _selecionarImagem() async {
+    setState(() => _carregandoImagem = true);
+    try {
+      final resultado = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+
+      if (resultado != null && resultado.files.first.bytes != null) {
+        setState(() {
+          _imagemBytes = resultado.files.first.bytes;
+          _nomeArquivo = resultado.files.first.name;
+        });
+      }
+    } catch (e) {
+      debugPrint("Erro ao selecionar imagem: $e");
+    } finally {
+      setState(() => _carregandoImagem = false);
+    }
   }
 
   @override
@@ -51,7 +80,6 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
           );
         }
 
-        // Se não houver treino ativo para o grupo, o card não ocupa espaço
         if (!snapshot.hasData || snapshot.data == null) {
           return const SizedBox.shrink();
         }
@@ -135,7 +163,74 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
                   onChanged: (v) => setState(() => _intensidade = v),
                 ),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 15),
+
+                // ==========================================
+                // NOVO: BOTÃO SELETOR DE IMAGEM (.PNG)
+                // ==========================================
+                const Text(
+                  "FOTO DO COMPROVANT (OPCIONAL)",
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: _carregandoImagem ? null : _selecionarImagem,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: _carregandoImagem
+                        ? const Center(
+                            child: SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: AppTheme.primaryNeon,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _imagemBytes != null
+                                    ? Icons.check_circle
+                                    : Icons.camera_alt,
+                                color: _imagemBytes != null
+                                    ? Colors.green
+                                    : Colors.grey,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _nomeArquivo ??
+                                      "Anexar comprovante do Treino Pago (.png)",
+                                  style: TextStyle(
+                                    color: _imagemBytes != null
+                                        ? Colors.green
+                                        : Colors.white24,
+                                    fontSize: 13,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 15),
 
                 TextField(
                   controller: _feedbackController,
@@ -172,11 +267,24 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
                         : () async {
                             setState(() => _isFinalizando = true);
                             try {
+                              String? urlFotoUpload;
+
+                              // 1. Faz o upload da foto se ela existir
+                              if (_imagemBytes != null &&
+                                  _nomeArquivo != null) {
+                                urlFotoUpload = await repository
+                                    .uploadComprovanteTreino(
+                                      _nomeArquivo!,
+                                      _imagemBytes!,
+                                    );
+                              }
+
+                              // 2. Chama o método unificado do repositório
                               await repository.finalizarTreino(
-                                treinoId:
-                                    treino['id'], // 'id' aqui virá como String, o que é o correto agora
                                 feedback: _feedbackController.text,
-                                intensidade: _intensidade.toInt(),
+                                intensidade: _intensidade
+                                    .toInt(), // Parâmetro ajustado
+                                fotoUrl: urlFotoUpload, // Parâmetro adicionado
                               );
 
                               if (mounted) {
@@ -190,7 +298,7 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
                                 );
                                 _feedbackController.clear();
                                 _isFinalizando = false;
-                                _atualizarLista(); // Recarrega para sumir o card
+                                _atualizarLista();
                               }
                             } catch (e) {
                               setState(() => _isFinalizando = false);
@@ -221,8 +329,8 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
   }
 
   Widget _secaoTexto(
-    String label,
-    Color cor,
+    String titulo,
+    Color corTitulo,
     String? conteudo,
     IconData icone,
   ) {
@@ -231,12 +339,12 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
       children: [
         Row(
           children: [
-            Icon(icone, color: cor, size: 14),
+            Icon(icone, color: corTitulo, size: 16),
             const SizedBox(width: 6),
             Text(
-              label,
+              titulo,
               style: TextStyle(
-                color: cor,
+                color: corTitulo,
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
               ),
@@ -245,7 +353,7 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
         ),
         const SizedBox(height: 8),
         Text(
-          conteudo ?? "Informação não disponível para este treino.",
+          conteudo ?? "Não informado.",
           style: const TextStyle(
             color: Colors.white70,
             fontSize: 14,

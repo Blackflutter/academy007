@@ -2,13 +2,22 @@ import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:academy007/presentation/screens/criar_grupo_screen.dart';
 import 'package:academy007/presentation/screens/login_screen.dart';
 import 'package:academy007/presentation/screens/meus_grupos_screen.dart';
+import 'package:academy007/presentation/widgets/gerenciar_grupo_page.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
 
-class CustomDrawer extends StatelessWidget {
-  const CustomDrawer({super.key});
+class CustomDrawer extends StatefulWidget {
+  final String? grupoId;
+  final String? grupoNome;
 
+  const CustomDrawer({super.key, this.grupoId, this.grupoNome});
+
+  @override
+  State<CustomDrawer> createState() => _CustomDrawerState();
+}
+
+class _CustomDrawerState extends State<CustomDrawer> {
   // Função para mostrar o campo de digitação do código
   void _mostrarDialogVincular(BuildContext context) {
     final TextEditingController codigoController = TextEditingController();
@@ -72,20 +81,22 @@ class CustomDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
-    final bool isProfessor = true; // Mantido conforme seu código
+    final bool isProfessor = true; // Mantido conforme sua lógica de negócio
+
+    // Verifica se existe um contexto de grupo ativo para este menu
+    final bool possuiGrupoAtivo =
+        widget.grupoId != null && widget.grupoNome != null;
 
     return Drawer(
       backgroundColor: const Color(0xFF121212),
       child: Column(
         children: [
           UserAccountsDrawerHeader(
-            decoration: BoxDecoration(
-              color: isProfessor ? AppTheme.primaryNeon : Colors.blueGrey,
-            ),
-            currentAccountPicture: CircleAvatar(
+            decoration: const BoxDecoration(color: AppTheme.primaryNeon),
+            currentAccountPicture: const CircleAvatar(
               backgroundColor: Colors.black,
               child: Icon(
-                isProfessor ? Icons.admin_panel_settings : Icons.person,
+                Icons.admin_panel_settings,
                 color: Colors.white,
                 size: 40,
               ),
@@ -110,7 +121,6 @@ class CustomDrawer extends StatelessWidget {
             onTap: () => Navigator.pop(context),
           ),
 
-          // NOVO ITEM: Vincular Professor (Disponível para todos)
           _drawerItem(
             icon: Icons.vpn_key,
             label: "Vincular ao Professor",
@@ -142,7 +152,7 @@ class CustomDrawer extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) =>
-                        MeusGruposScreen(grupoId: '', nomeGrupo: ''),
+                        const MeusGruposScreen(grupoId: '', nomeGrupo: ''),
                   ),
                 );
               },
@@ -163,17 +173,45 @@ class CustomDrawer extends StatelessWidget {
               label: "Avaliações Diárias",
               onTap: () => Navigator.pop(context),
             ),
+
+            const Divider(color: Colors.white10),
+
+            // ITEM CORRIGIDO: Gerenciar o grupo ativo
+            _drawerItem(
+              icon: Icons.group_work,
+              label: possuiGrupoAtivo
+                  ? "Gerenciar: ${widget.grupoNome}"
+                  : "Gerenciar Grupo",
+              color: possuiGrupoAtivo ? AppTheme.primaryNeon : Colors.white38,
+              onTap: () {
+                if (!possuiGrupoAtivo) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Acesse a aba 'Meus Grupos' e selecione um grupo para gerenciar.",
+                      ),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context); // Fecha o menu lateral
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => GerenciarGrupoPage(
+                      grupoId: widget.grupoId!,
+                      grupoNome: widget.grupoNome!,
+                    ),
+                  ),
+                );
+              },
+            ),
           ],
 
-          const Divider(color: Colors.white10),
-
-          _drawerItem(
-            icon: Icons.settings,
-            label: "Configurações",
-            onTap: () => Navigator.pop(context),
-          ),
-
           const Spacer(),
+          const Divider(color: Colors.white10),
 
           _drawerItem(
             icon: Icons.logout,

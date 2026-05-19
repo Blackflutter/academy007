@@ -51,6 +51,7 @@ class _NutricaoScreenState extends State<NutricaoScreen> {
             children: [
               _buildResumoDiario(totalProt),
               const SizedBox(height: 30),
+              // ignore: unnecessary_to_list_in_spreads
               ...refeicoes.map((ref) => _buildRefeicaoItem(ref)).toList(),
             ],
           );

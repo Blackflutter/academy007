@@ -1,5 +1,9 @@
+import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:academy007/presentation/screens/admin_treino_screen.dart';
+import 'package:academy007/presentation/screens/alunos_academia_screen.dart';
+import 'package:academy007/presentation/screens/financeiro_screen.dart';
 import 'package:academy007/presentation/screens/historico_treino_aluno.dart';
+import 'package:academy007/presentation/screens/minha_filial_screen.dart';
 import 'package:academy007/presentation/screens/treino_grupos_screen.dart';
 import 'package:academy007/presentation/screens/treino_screen.dart';
 import 'package:academy007/presentation/widgets/custom_drawer.dart';
@@ -95,7 +99,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      drawer: const CustomDrawer(),
+      drawer:
+          const CustomDrawer(), // O botão "Gerenciar" ficará travado até ele escolher um grupo
+
       backgroundColor: AppTheme.darkBackground,
       body: SafeArea(
         child: FutureBuilder<Map<String, dynamic>?>(
@@ -109,6 +115,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             final dados = snapshot.data;
             if (dados == null)
+              // ignore: curly_braces_in_flow_control_structures
               return const Center(child: Text("Perfil não encontrado"));
 
             final bool isProfessor = dados['cargo'] == 'professor';
@@ -164,6 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       future: _repository.buscarHistoricoPeso(),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData)
+                          // ignore: curly_braces_in_flow_control_structures
                           return const LinearProgressIndicator();
                         return EvolucaoChart(historico: snapshot.data!);
                       },
@@ -366,24 +374,128 @@ class _DashboardScreenState extends State<DashboardScreen> {
       childAspectRatio: 1.1,
       children: isProfessor
           ? [
-              _bentoItem(
-                "Alunos",
-                Icons.people,
-                "Ver Lista",
-                AppTheme.primaryNeon,
+              GestureDetector(
+                onTap: () async {
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryNeon,
+                      ),
+                    ),
+                  );
+
+                  try {
+                    final repository = GrupoRepository();
+                    final supabase = Supabase.instance.client;
+                    final user = supabase.auth.currentUser;
+
+                    if (user == null)
+                      throw 'Sessão expirada. Faça login novamente.';
+
+                    // Busca o código de acesso da academia do professor logado
+                    final academiaResponse = await supabase
+                        .from('academias')
+                        .select('codigo_acesso')
+                        .eq('responsavel_id', user.id)
+                        .maybeSingle();
+
+                    if (academiaResponse == null ||
+                        academiaResponse['codigo_acesso'] == null) {
+                      throw 'Você não possui nenhuma academia vinculada ao seu perfil.';
+                    }
+
+                    final String codigoDinamico =
+                        academiaResponse['codigo_acesso'].toString();
+
+                    // Busca os alunos cadastrados
+                    final listaAlunos = await repository.buscarAlunosDaAcademia(
+                      codigoDinamico,
+                    );
+
+                    if (context.mounted)
+                      Navigator.pop(context); // Fecha o loading
+
+                    if (context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              AlunosAcademiaScreen(alunos: listaAlunos),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted)
+                      Navigator.pop(context); // Garante que o loading fecha
+
+                    // TRATAMENTO AMIGÁVEL DO ERRO: Transforma a exceção em um aviso visual na tela
+                    if (context.mounted) {
+                      final String mensagemErro = e
+                          .toString()
+                          .replaceAll('Exception: ', '')
+                          .replaceAll('DartError: ', '');
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            mensagemErro,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          backgroundColor:
+                              Colors.orangeAccent, // Cor de aviso/alerta
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    }
+                  }
+                },
+                child: _bentoItem(
+                  "Alunos",
+                  Icons.people,
+                  "Ver Lista",
+                  AppTheme.primaryNeon,
+                ),
               ),
-              _bentoItem(
-                "Financeiro",
-                Icons.payments,
-                "Fluxo de Caixa",
-                Colors.blueAccent,
+
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FinanceiroScreen(),
+                    ),
+                  );
+                },
+                child: _bentoItem(
+                  "Financeiro",
+                  Icons.payments,
+                  "Fluxo de Caixa",
+                  Colors.blueAccent,
+                ),
               ),
-              _bentoItem(
-                "Config",
-                Icons.settings,
-                "Minha Filial",
-                Colors.purpleAccent,
+
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MinhaFilialScreen(),
+                    ),
+                  );
+                },
+                child: _bentoItem(
+                  "Config",
+                  Icons.settings,
+                  "Minha Filial",
+                  Colors.purpleAccent,
+                ),
               ),
+
               _bentoItem(
                 "Relatórios",
                 Icons.analytics,
@@ -492,7 +604,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.primaryNeon.withOpacity(0.1),
+        color: AppTheme.primaryNeon.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: const Row(

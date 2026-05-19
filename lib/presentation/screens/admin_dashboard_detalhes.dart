@@ -115,7 +115,7 @@ class _AdminDashboardDetalhesState extends State<AdminDashboardDetalhes>
       itemBuilder: (context, index) {
         final item = _treinosConcluidos[index];
         return Card(
-          color: Colors.white.withOpacity(0.05),
+          color: Colors.white.withValues(alpha: 0.05),
           margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
             title: Text(

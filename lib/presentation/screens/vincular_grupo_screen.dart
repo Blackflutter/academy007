@@ -78,7 +78,7 @@ class _VincularGrupoWidgetState extends State<VincularGrupoWidget> {
               hintText: "Ex: GRUPO-ABC",
               hintStyle: const TextStyle(color: Colors.white10),
               filled: true,
-              fillColor: Colors.white.withOpacity(0.05),
+              fillColor: Colors.white.withValues(alpha: 0.05),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(15),
               ),

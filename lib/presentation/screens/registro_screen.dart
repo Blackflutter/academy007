@@ -1,3 +1,5 @@
+// ignore_for_file: curly_braces_in_flow_control_structures
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dashboard_screen.dart'; // Certifique-se que o caminho está correto
@@ -412,6 +414,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 onPressed: () => setState(() {
                   _respostasAnamnese[p['id']] = p['ops'][i];
                   if (_perguntaIndex < 9)
+                    // ignore: duplicate_ignore
+                    // ignore: curly_braces_in_flow_control_structures
                     _perguntaIndex++;
                   else
                     _etapaAtual = 2;

@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: "E-mail",
                     hintStyle: const TextStyle(color: Colors.grey),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
+                    fillColor: Colors.white.withValues(alpha: 0.05),
                     prefixIcon: const Icon(
                       Icons.email_outlined,
                       color: AppTheme.primaryNeon,
@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     hintText: "Senha",
                     hintStyle: const TextStyle(color: Colors.grey),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
+                    fillColor: Colors.white.withValues(alpha: 0.05),
                     prefixIcon: const Icon(
                       Icons.lock_outline,
                       color: AppTheme.primaryNeon,

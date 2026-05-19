@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/grupo_model.dart';
 
@@ -36,7 +38,24 @@ class GrupoRepository {
           .from('perfis')
           .select('id, nome, peso_atual, anamnese')
           .order('nome');
-      return List<Map<String, dynamic>>.from(response);
+
+      if (response == null) return [];
+
+      // CORREÇÃO: Mapeamento manual tratando cada valor individualmente
+      // Evita o erro de tipo se id for UUID string e peso for int/double
+      return (response as List).map((item) {
+        final map = item as Map<String, dynamic>;
+        return {
+          'id':
+              map['id']?.toString() ??
+              '', // Garante que o ID do aluno seja String
+          'nome': map['nome']?.toString() ?? 'Sem Nome',
+          'peso_atual':
+              map['peso_atual']?.toString() ??
+              '0', // Converte peso para String seguro
+          'anamnese': map['anamnese']?.toString() ?? 'Não preenchida',
+        };
+      }).toList();
     } catch (e) {
       throw 'Erro ao listar alunos: $e';
     }
@@ -53,53 +72,69 @@ class GrupoRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> buscarMembrosDoGrupo(
-    String grupoId,
-  ) async {
-    try {
-      final response = await _supabase
-          .from('grupo_alunos')
-          .select('aluno_id, perfis(id, nome, peso_atual, altura, anamnese)')
-          .eq('grupo_id', grupoId);
-      return (response as List)
-          .map((item) => item['perfis'] as Map<String, dynamic>)
-          .toList();
-    } catch (e) {
-      throw 'Erro ao carregar membros: $e';
-    }
-  }
-
   Future<void> removerAlunoDoGrupo(String grupoId, String alunoId) async {
     try {
-      await _supabase.from('grupo_alunos').delete().match({
-        'grupo_id': grupoId,
-        'aluno_id': alunoId,
-      });
+      // Força o filtro exato combinando as duas colunas
+      // Isso garante que APENAS o vínculo com ESTE grupo seja deletado
+      await _supabase
+          .from('grupo_alunos')
+          .delete()
+          .eq('grupo_id', grupoId.trim())
+          .eq('aluno_id', alunoId.trim());
     } catch (e) {
-      throw 'Erro ao remover aluno: $e';
+      throw 'Erro ao desvincular aluno do grupo específico: $e';
     }
   }
 
   // --- MÉTODOS DE TREINAMENTO (COLETIVO) ---
 
+  // 🟢 Deixe o topo da sua função de salvar treino coletivo no GRUPO_REPOSITORY assim:
   Future<void> salvarTreinoColetivo({
     required String grupoId,
+    required dynamic academiaId,
     required String titulo,
     required String treino,
     required String dieta,
   }) async {
     final user = _supabase.auth.currentUser;
-    if (user == null) throw 'Acesso negado';
+    if (user == null) throw 'Acesso negado. Faça login para continuar.';
+
     try {
-      await _supabase.from('treinos_coletivos').upsert({
-        'grupo_id': grupoId,
-        'titulo': titulo,
-        'descricao_treino': treino,
-        'plano_alimentar': dieta,
+      int? academiaIdInt;
+
+      // Se a tela não enviou o ID da academia, buscamos a primeira cadastrada do professor
+      if (academiaId == null || academiaId.toString().isEmpty) {
+        final buscarAcademia = await _supabase
+            .from('academias')
+            .select('id')
+            .eq('responsavel_id', user.id)
+            .limit(
+              1,
+            ) // 🛑 ISSO EVITA O ERRO 406 CASO EXISTA MAIS DE UMA FILIAL!
+            .maybeSingle();
+
+        if (buscarAcademia != null) {
+          academiaIdInt = int.tryParse(buscarAcademia['id'].toString());
+        }
+      } else {
+        academiaIdInt = int.tryParse(academiaId.toString());
+      }
+
+      if (academiaIdInt == null) {
+        throw 'Nenhuma filial cadastrada ou vinculada encontrada para publicar este treino.';
+      }
+
+      // Agora insere com segurança o treino coletivo no banco
+      await _supabase.from('treinos_coletivos').insert({
+        'grupo_id': grupoId.toString().trim(),
+        'academia_id': academiaIdInt,
+        'titulo': titulo.trim(),
+        'descricao_treino': treino.trim(),
+        'plano_alimentar': dieta.trim(),
         'professor_id': user.id,
       });
     } catch (e) {
-      throw 'Erro ao salvar treino: $e';
+      throw 'Erro ao publicar treino: $e';
     }
   }
 
@@ -123,59 +158,108 @@ class GrupoRepository {
     }
   }
 
-  // Adicione/Substitua no seu grupo_repository.dart
-  Future<List<String>> buscarIdsAlunosNoGrupo(String grupoId) async {
+  /// CORRIGIDO: Proteção contra retornos nulos do perfil devido ao RLS
+  Future<List<Map<String, dynamic>>> buscarMembrosDoGrupo(
+    String grupoId,
+  ) async {
     try {
       final response = await _supabase
           .from('grupo_alunos')
-          .select('aluno_id')
-          .eq('grupo_id', grupoId);
+          .select('aluno_id, perfis(id, nome, peso_atual, altura, anamnese)')
+          .eq('grupo_id', grupoId.trim()); // Sem .single()
 
-      // Converte a lista de maps para uma lista de Strings (IDs)
       return (response as List)
-          .map((item) => item['aluno_id'].toString())
+          .where((item) => item['perfis'] != null)
+          .map((item) => item['perfis'] as Map<String, dynamic>)
           .toList();
     } catch (e) {
-      return [];
+      throw 'Erro ao carregar membros: $e';
     }
   }
 
-  /// BUSCA o treino do grupo que o aluno faz parte
+  /// BUSCA o treino coletivo mais recente do grupo que o aluno faz parte
   Future<Map<String, dynamic>?> buscarTreinoDoMeuGrupo() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return null;
 
     try {
-      // 1. Busca o grupo_id do perfil
-      final perfil = await _supabase
-          .from('perfis')
+      // 1. Busca o grupo do aluno limitando a 1 para evitar o erro 406 anterior
+      final vinculo = await _supabase
+          .from('grupo_alunos')
           .select('grupo_id')
-          .eq('id', user.id)
-          .single();
-      final grupoId = perfil['grupo_id'];
-      if (grupoId == null) return null;
-
-      // 2. Verifica se o aluno JÁ CONCLUIU algo hoje
-      final hoje = DateTime.now().toIso8601String().substring(0, 10);
-      final conclusaoHoje = await _supabase
-          .from('treinos_concluidos')
-          .select('id')
           .eq('aluno_id', user.id)
-          .gte('data_conclusao', hoje)
+          .limit(1)
           .maybeSingle();
 
-      // SE JÁ CONCLUIU HOJE, não retorna o treino (o card some)
-      if (conclusaoHoje != null) return null;
+      if (vinculo == null || vinculo['grupo_id'] == null) {
+        return null;
+      }
 
-      // 3. Caso contrário, busca o treino coletivo
-      return await _supabase
+      final String grupoIdUuid = vinculo['grupo_id'].toString();
+
+      // 2. Busca o treino coletivo mais recente publicado para este grupo
+      final treinoResponse = await _supabase
           .from('treinos_coletivos')
           .select()
-          .eq('grupo_id', grupoId)
+          .eq('grupo_id', grupoIdUuid)
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
+
+      // Se o professor não publicou nenhum treino para este grupo, não mostra nada
+      if (treinoResponse == null) {
+        return null;
+      }
+
+      final String treinoId = treinoResponse['id'].toString();
+      final String hojeLocal = DateTime.now().toIso8601String().substring(
+        0,
+        10,
+      ); // YYYY-MM-DD
+
+      // 3. SOLUÇÃO COMPATÍVEL: Busca as conclusões de hoje deste aluno
+      final conclusoeshoje = await _supabase
+          .from('treinos_concluidos')
+          .select()
+          .eq('aluno_id', user.id)
+          .gte('data_conclusao', hojeLocal);
+
+      // 4. Varre a lista de hoje para ver se o ID deste treino coletivo consta lá dentro
+      // Funciona mesmo se a coluna se chamar 'treino_coletivo_id' ou apenas 'treino_id'
+      final List listaConclusoes = conclusoeshoje as List;
+      bool jaRealizouEsteTreino = false;
+
+      for (var conclusao in listaConclusoes) {
+        // Verifica dinamicamente qual nome de coluna você usou no banco
+        if (conclusao['treino_coletivo_id']?.toString() == treinoId ||
+            conclusao['treino_id']?.toString() == treinoId) {
+          jaRealizouEsteTreino = true;
+          break;
+        }
+      }
+
+      // Se ele já concluiu ESTE treino hoje, o card some
+      if (jaRealizouEsteTreino) {
+        return null;
+      }
+
+      // 5. Se não concluiu, retorna o treino perfeito para o visor da Dashboard carregar!
+      return {
+        'id': treinoId,
+        'grupo_id': treinoResponse['grupo_id']?.toString() ?? '',
+        'titulo': treinoResponse['titulo']?.toString() ?? 'Treino do Dia',
+        'descricao_treino':
+            treinoResponse['descricao_treino']?.toString() ??
+            'Sem descrição disponível.',
+        'plano_alimentar':
+            treinoResponse['plano_alimentar']?.toString() ??
+            'Nenhuma dieta vinculada.',
+        'professor_id': treinoResponse['professor_id']?.toString() ?? '',
+        'academia_id':
+            int.tryParse(treinoResponse['academia_id']?.toString() ?? '') ?? 0,
+      };
     } catch (e) {
+      // Evita o travamento da dashboard se houver falha de digitação em colunas do banco
       return null;
     }
   }
@@ -185,57 +269,231 @@ class GrupoRepository {
     final user = _supabase.auth.currentUser;
     if (user == null) throw 'Faça login para continuar';
 
-    // Limpa o código de espaços em branco e garante que está igual ao banco
     final codigoLimpo = codigo.trim();
 
     try {
-      // 1. Busca o grupo
-      final response = await _supabase
+      dynamic grupoId;
+
+      // 1. PASSO 1: Tenta buscar na tabela de grupos (Turma do Professor)
+      final buscaGrupo = await _supabase
           .from('grupos')
           .select('id')
           .eq('codigo_convite', codigoLimpo)
-          .maybeSingle(); // Usar maybeSingle evita erro de exceção imediata
+          .maybeSingle();
 
-      if (response == null) {
-        throw 'Código "$codigoLimpo" não encontrado no sistema.';
+      if (buscaGrupo != null) {
+        grupoId = buscaGrupo['id'];
+      } else {
+        // 2. PASSO 2: Se não achou, o código pode ser de uma ACADEMIA.
+        // Busca a academia para encontrar o responsável por ela
+        final buscaAcademia = await _supabase
+            .from('academias')
+            .select('id, responsavel_id')
+            .eq('codigo_acesso', codigoLimpo)
+            .maybeSingle();
+
+        if (buscaAcademia != null) {
+          final String responsavelId = buscaAcademia['responsavel_id']
+              .toString();
+
+          // Busca o primeiro grupo que pertence a esse professor responsável
+          final buscaGrupoResponsavel = await _supabase
+              .from('grupos')
+              .select('id')
+              .eq('professor_id', responsavelId)
+              .limit(1)
+              .maybeSingle();
+
+          if (buscaGrupoResponsavel != null) {
+            grupoId = buscaGrupoResponsavel['id'];
+          }
+        }
       }
 
-      // 2. Vincula na tabela perfis
-      await _supabase
-          .from('perfis')
-          .update({'grupo_id': response['id']})
-          .eq('id', user.id);
+      // Se não encontrou o grupo em nenhuma das tabelas
+      if (grupoId == null) {
+        throw 'O código "$codigoLimpo" não foi encontrado no sistema.';
+      }
+
+      // 3. PASSO 3: Insere o vínculo na tabela intermediária grupo_alunos
+      await _supabase.from('grupo_alunos').insert({
+        'grupo_id': grupoId,
+        'aluno_id': user.id,
+      });
     } on PostgrestException catch (e) {
-      throw 'Erro no banco: ${e.message}';
+      if (e.code == '23505') {
+        throw 'Você já está vinculado a este grupo.';
+      }
+      throw 'Erro no banco: [${e.code}] ${e.message}';
     } catch (e) {
-      throw 'Erro: $e';
+      // Repassa o erro de negócio tratado acima
+      rethrow;
     }
   }
 
-  /// FINALIZA o treino do grupo (Marcar como pago)
+  /// Busca todos os alunos vinculados à academia/unidade através dos grupos do responsável
+  Future<List<Map<String, dynamic>>> buscarAlunosDaAcademia(
+    String codigoAcesso,
+  ) async {
+    try {
+      // 1. Busca o ID numérico e o responsável da academia pelo código de acesso
+      final academiaResponse = await _supabase
+          .from('academias')
+          .select('id, responsavel_id')
+          .eq('codigo_acesso', codigoAcesso)
+          .maybeSingle();
 
+      if (academiaResponse == null) {
+        return [];
+      }
+
+      final String responsavelId = academiaResponse['responsavel_id']
+          .toString();
+
+      // 2. Busca todos os grupos que pertencem a este professor/responsável
+      final gruposProfessor = await _supabase
+          .from('grupos')
+          .select('id')
+          .eq('professor_id', responsavelId);
+
+      if (gruposProfessor == null || (gruposProfessor as List).isEmpty) {
+        return [];
+      }
+
+      // Extrai os IDs dos grupos em formato de texto para a query
+      final List<String> grupoIds = (gruposProfessor as List)
+          .map((g) => g['id'].toString())
+          .toList();
+
+      // 3. Monta o filtro dinâmico utilizando .or() para evitar falhas do método .in_
+      final String filtroOr = grupoIds.map((id) => 'grupo_id.eq.$id').join(',');
+
+      // 4. Busca os alunos matriculados nos grupos mapeados
+      final response = await _supabase
+          .from('grupo_alunos')
+          .select('aluno_id, perfis(id, nome, peso_atual, altura, anamnese)')
+          .or(filtroOr);
+
+      final List<Map<String, dynamic>> listaAlunos = [];
+
+      if (response != null) {
+        for (var item in (response as List)) {
+          if (item['perfis'] != null) {
+            listaAlunos.add(item['perfis'] as Map<String, dynamic>);
+          }
+        }
+      }
+
+      // Remove registros duplicados (caso o aluno esteja em mais de uma turma)
+      final idsUnicos = <String>{};
+      final listaFiltrada = listaAlunos
+          .where((aluno) => idsUnicos.add(aluno['id'].toString()))
+          .toList();
+
+      // Ordena a lista final em ordem alfabética pelo nome
+      listaFiltrada.sort(
+        (a, b) => (a['nome'] ?? '').toString().toLowerCase().compareTo(
+          (b['nome'] ?? '').toString().toLowerCase(),
+        ),
+      );
+
+      return listaFiltrada;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Corrigido para aceitar dynamic (int ou String/UUID) de forma segura
+  /// CORRIGIDO: Busca múltiplos IDs de alunos no grupo sem quebrar por duplicidade
+  Future<List<String>> buscarIdsAlunosNoGrupo(String grupoId) async {
+    try {
+      final response = await _supabase
+          .from('grupo_alunos')
+          .select('aluno_id')
+          .eq(
+            'grupo_id',
+            grupoId.trim(),
+          ); // 🛑 REMOVIDO .single() ou .maybeSingle()
+
+      if (response == null) return [];
+
+      // Mapeia o retorno garantindo uma lista limpa de Strings de IDs
+      return (response as List)
+          .map((item) => item['aluno_id'].toString())
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<String?> uploadComprovanteTreino(
+    String fileName,
+    Uint8List fileBytes,
+  ) async {
+    try {
+      final String path =
+          'treinos/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
+      // Envia os bytes diretamente para o bucket público
+      await _supabase.storage
+          .from('comprovantes_treino')
+          .uploadBinary(
+            path,
+            fileBytes,
+            fileOptions: const FileOptions(contentType: 'image/png'),
+          );
+
+      // Captura e retorna a URL pública gerada
+      final String publicUrl = _supabase.storage
+          .from('comprovantes_treino')
+          .getPublicUrl(path);
+
+      return publicUrl;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Substitua a assinatura em grupo_repository.dart por esta versão flexível:
   Future<void> finalizarTreino({
-    required String treinoId, // String para o UUID
     required String feedback,
-    required int intensidade,
+    required dynamic intensidade, // CORRIGIDO: adicionado a letra 'e'
+    String? fotoUrl,
   }) async {
     final user = _supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) throw 'Sessão expirada. Faça login novamente.';
 
     try {
-      // 1. Registra na tabela CORRETA: 'treinos_concluidos'
-      // Ajustado conforme o seu diagrama (colunas: aluno_id, feedback_texto, intensidade)
       await _supabase.from('treinos_concluidos').insert({
         'aluno_id': user.id,
-        'exercicio_id':
-            null, // Como é treino coletivo, o ID do exercício individual pode ser nulo
-        'feedback_texto': feedback, // Nome exato na sua tabela
-        'intensidade': intensidade,
+        'feedback_texto': feedback.trim(),
+        'intensidade':
+            int.tryParse(intensidade.toString()) ??
+            3, // CORRIGIDO: adicionado a letra 'e'
         'data_conclusao': DateTime.now().toIso8601String(),
-        // 'treino_coletivo_id': treinoId, // Adicione se você criou essa FK na tabela
+        'foto_comprovante': fotoUrl,
       });
     } catch (e) {
-      throw 'Erro ao finalizar treino: $e';
+      throw 'Erro ao finalizar treino no banco: $e';
+    }
+  }
+
+  /// Busca o histórico de treinos pagos de um aluno específico
+  Future<List<Map<String, dynamic>>> buscarDesempenhoDoAluno(
+    String alunoId,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('treinos_concluidos')
+          .select(
+            'id, feedback_texto, intensidade, data_conclusao, foto_comprovante',
+          )
+          .eq('aluno_id', alunoId)
+          .order('data_conclusao', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response ?? []);
+    } catch (e) {
+      return [];
     }
   }
 }

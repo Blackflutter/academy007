@@ -68,6 +68,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             icon: const Icon(Icons.logout, color: Colors.redAccent),
             onPressed: () async {
               await _supabase.auth.signOut();
+              // ignore: use_build_context_synchronously
               Navigator.pushReplacementNamed(context, '/login');
             },
           ),
@@ -120,9 +121,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF00FF00).withOpacity(0.3)),
+        border: Border.all(
+          color: const Color(0xFF00FF00).withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
