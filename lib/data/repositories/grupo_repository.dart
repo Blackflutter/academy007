@@ -165,13 +165,23 @@ class GrupoRepository {
     try {
       final response = await _supabase
           .from('grupo_alunos')
-          .select('aluno_id, perfis(id, nome, peso_atual, altura, anamnese)')
-          .eq('grupo_id', grupoId.trim()); // Sem .single()
+          .select('aluno_id')
+          .eq('grupo_id', grupoId.trim());
 
-      return (response as List)
-          .where((item) => item['perfis'] != null)
-          .map((item) => item['perfis'] as Map<String, dynamic>)
+      if (response.isEmpty) {
+        return [];
+      }
+
+      final alunoIds = (response as List)
+          .map((item) => item['aluno_id'].toString())
           .toList();
+
+      final perfis = await _supabase
+          .from('perfis')
+          .select('id, nome, peso_atual, altura, anamnese')
+          .inFilter('id', alunoIds);
+
+      return List<Map<String, dynamic>>.from(perfis);
     } catch (e) {
       throw 'Erro ao carregar membros: $e';
     }
@@ -279,8 +289,8 @@ class GrupoRepository {
           .from('grupos')
           .select('id')
           .eq('codigo_convite', codigoLimpo)
+          .limit(1)
           .maybeSingle();
-
       if (buscaGrupo != null) {
         grupoId = buscaGrupo['id'];
       } else {
@@ -290,6 +300,7 @@ class GrupoRepository {
             .from('academias')
             .select('id, responsavel_id')
             .eq('codigo_acesso', codigoLimpo)
+            .limit(1)
             .maybeSingle();
 
         if (buscaAcademia != null) {
@@ -336,74 +347,60 @@ class GrupoRepository {
     String codigoAcesso,
   ) async {
     try {
-      // 1. Busca o ID numérico e o responsável da academia pelo código de acesso
+      // 1. Busca academia
       final academiaResponse = await _supabase
           .from('academias')
-          .select('id, responsavel_id')
-          .eq('codigo_acesso', codigoAcesso)
-          .maybeSingle();
+          .select('responsavel_id')
+          .eq('codigo_acesso', codigoAcesso);
 
-      if (academiaResponse == null) {
+      if (academiaResponse.isEmpty) {
         return [];
       }
 
-      final String responsavelId = academiaResponse['responsavel_id']
-          .toString();
+      final responsavelId = academiaResponse.first['responsavel_id'].toString();
 
-      // 2. Busca todos os grupos que pertencem a este professor/responsável
+      // 2. Busca grupos do professor
       final gruposProfessor = await _supabase
           .from('grupos')
           .select('id')
           .eq('professor_id', responsavelId);
 
-      if (gruposProfessor == null || (gruposProfessor as List).isEmpty) {
+      if (gruposProfessor.isEmpty) {
         return [];
       }
 
-      // Extrai os IDs dos grupos em formato de texto para a query
-      final List<String> grupoIds = (gruposProfessor as List)
+      final grupoIds = (gruposProfessor as List)
           .map((g) => g['id'].toString())
           .toList();
 
-      // 3. Monta o filtro dinâmico utilizando .or() para evitar falhas do método .in_
-      final String filtroOr = grupoIds.map((id) => 'grupo_id.eq.$id').join(',');
-
-      // 4. Busca os alunos matriculados nos grupos mapeados
-      final response = await _supabase
+      // 3. Busca IDs dos alunos
+      final grupoAlunos = await _supabase
           .from('grupo_alunos')
-          .select('aluno_id, perfis(id, nome, peso_atual, altura, anamnese)')
-          .or(filtroOr);
+          .select('aluno_id')
+          .inFilter('grupo_id', grupoIds);
 
-      final List<Map<String, dynamic>> listaAlunos = [];
-
-      if (response != null) {
-        for (var item in (response as List)) {
-          if (item['perfis'] != null) {
-            listaAlunos.add(item['perfis'] as Map<String, dynamic>);
-          }
-        }
+      if (grupoAlunos.isEmpty) {
+        return [];
       }
 
-      // Remove registros duplicados (caso o aluno esteja em mais de uma turma)
-      final idsUnicos = <String>{};
-      final listaFiltrada = listaAlunos
-          .where((aluno) => idsUnicos.add(aluno['id'].toString()))
+      final alunoIds = (grupoAlunos as List)
+          .map((a) => a['aluno_id'].toString())
+          .toSet()
           .toList();
 
-      // Ordena a lista final em ordem alfabética pelo nome
-      listaFiltrada.sort(
-        (a, b) => (a['nome'] ?? '').toString().toLowerCase().compareTo(
-          (b['nome'] ?? '').toString().toLowerCase(),
-        ),
-      );
+      // 4. Busca perfis separado
+      final perfis = await _supabase
+          .from('perfis')
+          .select('id, nome, peso_atual, altura, anamnese')
+          .inFilter('id', alunoIds)
+          .order('nome');
 
-      return listaFiltrada;
+      return List<Map<String, dynamic>>.from(perfis);
     } catch (e) {
       return [];
     }
   }
 
-  // Corrigido para aceitar dynamic (int ou String/UUID) de forma segura
   /// CORRIGIDO: Busca múltiplos IDs de alunos no grupo sem quebrar por duplicidade
   Future<List<String>> buscarIdsAlunosNoGrupo(String grupoId) async {
     try {
