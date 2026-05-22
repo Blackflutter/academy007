@@ -1,3 +1,6 @@
+import 'package:academy007/controller/listar_todos_alunos.dart'
+    as _grupoRepositoryListarTodosAlunos;
+import 'package:academy007/controller/listar_todos_alunos.dart';
 import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:flutter/material.dart';
 import '../../data/repositories/financeiro_repository.dart';
@@ -11,7 +14,7 @@ class FinanceiroScreen extends StatefulWidget {
 
 class _FinanceiroScreenState extends State<FinanceiroScreen> {
   final _financeiroRepository = FinanceiroRepository();
-  final _grupoRepository = GrupoRepository();
+  final _grupoRepositoryListarTodosAlunos = GrupoRepositoryListarTodosAlunos();
 
   bool _isLoading = true;
   bool _salvandoLancamento = false; // 🟢 ADICIONE ESTA LINHA AQUI!
@@ -295,8 +298,9 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                                   ),
                                   onPressed: () async {
                                     try {
-                                      final alunos = await _grupoRepository
-                                          .listarTodosAlunos();
+                                      final alunos =
+                                          await _grupoRepositoryListarTodosAlunos
+                                              .listarTodosAlunos();
                                       setState(() {
                                         _todosOsAlunos = alunos;
                                       });

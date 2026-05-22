@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../data/repositories/grupo_repository.dart';
+import '../../controller/criar_grupos_repository.dart';
 
 class CriarGrupoScreen extends StatefulWidget {
   const CriarGrupoScreen({super.key});
@@ -11,7 +11,7 @@ class CriarGrupoScreen extends StatefulWidget {
 class _CriarGrupoScreenState extends State<CriarGrupoScreen> {
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  final GrupoRepository _repository = GrupoRepository();
+  final GrupoRepositoryCriar _repository = GrupoRepositoryCriar();
   bool _loading = false;
 
   Future<void> _salvarGrupo() async {

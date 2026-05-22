@@ -1,3 +1,4 @@
+import 'package:academy007/controller/buscar_membros_do_grupo.dart';
 import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:flutter/material.dart';
 
@@ -17,6 +18,9 @@ class GerenciarGrupoPage extends StatefulWidget {
 
 class _GerenciarGrupoPageState extends State<GerenciarGrupoPage> {
   final _grupoRepository = GrupoRepository();
+  final _grupoRepositoryBuscarMembrosDoGrupo =
+      GrupoRepositoryBuscarMembrosDoGrupo();
+
   List<Map<String, dynamic>> _alunos = [];
   bool _carregando = true;
 
@@ -30,7 +34,8 @@ class _GerenciarGrupoPageState extends State<GerenciarGrupoPage> {
   Future<void> _carregarAlunosDoGrupo() async {
     setState(() => _carregando = true);
     try {
-      final dados = await _grupoRepository.buscarMembrosDoGrupo(widget.grupoId);
+      final dados = await _grupoRepositoryBuscarMembrosDoGrupo
+          .buscarMembrosDoGrupo(widget.grupoId);
       setState(() {
         _alunos = dados;
         _carregando = false;

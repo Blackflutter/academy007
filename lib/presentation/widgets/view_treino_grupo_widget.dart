@@ -280,9 +280,9 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
 
                               // Envia os dados consolidados para salvar na tabela 'treinos_concluidos'
                               await repository.finalizarTreino(
-                                feedback: _feedbackController.text,
-                                intensidade: _intensidade
-                                    .toInt(), // Agora bate 100% com o repositório
+                                treinoId: treino['id'].toString(),
+                                feedback: _feedbackController.text.trim(),
+                                intensidade: _intensidade.toInt(),
                                 fotoUrl: urlFotoPublica,
                               );
 

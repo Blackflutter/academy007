@@ -1,3 +1,4 @@
+import 'package:academy007/controller/salvar_treinos_coletivos.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/repositories/grupo_repository.dart';
@@ -21,7 +22,8 @@ class _DefinirTreinoGrupoScreenState extends State<DefinirTreinoGrupoScreen> {
   final _tituloController = TextEditingController();
   final _treinoController = TextEditingController();
   final _dietaController = TextEditingController();
-  final _repository = GrupoRepository();
+  final _grupoRepositorySalvarTreinosColetivos =
+      GrupoRepositorySalvarTreinosColetivos();
   bool _isSaving = false;
 
   Future<void> _publicarTreino() async {
@@ -49,7 +51,7 @@ class _DefinirTreinoGrupoScreenState extends State<DefinirTreinoGrupoScreen> {
       );
 
       // 2. Chama o repositório atualizado enviando o academiaId obrigatório
-      await _repository.salvarTreinoColetivo(
+      await _grupoRepositorySalvarTreinosColetivos.salvarTreinoColetivo(
         grupoId: widget.grupoId.toString(),
         academiaId: academiaIdDinamica, // Injetado com sucesso (bigint)
         titulo: _tituloController.text,

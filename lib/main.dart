@@ -17,18 +17,30 @@ void main() async {
     anonKey: 'sb_publishable_iIl04niVpN_RW3LrmJIShQ_NpuC5olA',
   );
 
-  runApp(const Academy007App());
+  // 🟢 VERIFICAÇÃO AUTOMÁTICA DE SESSÃO:
+  // Recupera se existe um token de usuário válido salvo na memória local do aparelho
+  final session = Supabase.instance.client.auth.currentSession;
+  final bool usuarioEstaLogado = session != null;
+
+  // Passa o resultado da checagem para inicializar o Widget do App
+  runApp(Academy007App(iniciarLogado: usuarioEstaLogado));
 }
 
 class Academy007App extends StatelessWidget {
-  const Academy007App({super.key});
+  final bool iniciarLogado;
+
+  // Construtor atualizado para receber o estado da autenticação
+  const Academy007App({super.key, required this.iniciarLogado});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Academy 007',
       theme: AppTheme.theme,
-      initialRoute: AppRoutes.login, // Usando a constante
+
+      // 🟢 ROTEAMENTO INTELIGENTE:
+      // Se estiver logado, vai direto para as telas principais, senão abre a tela de login
+      initialRoute: iniciarLogado ? AppRoutes.main : AppRoutes.login,
 
       routes: {
         AppRoutes.login: (context) => const LoginScreen(),

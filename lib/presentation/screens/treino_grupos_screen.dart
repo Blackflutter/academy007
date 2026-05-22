@@ -281,10 +281,10 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
 
                               // 2. Chama o método unificado do repositório
                               await repository.finalizarTreino(
-                                feedback: _feedbackController.text,
-                                intensidade: _intensidade
-                                    .toInt(), // Parâmetro ajustado
-                                fotoUrl: urlFotoUpload, // Parâmetro adicionado
+                                treinoId: treino['id'].toString(),
+                                feedback: _feedbackController.text.trim(),
+                                intensidade: _intensidade.toInt(),
+                                fotoUrl: urlFotoUpload,
                               );
 
                               if (mounted) {

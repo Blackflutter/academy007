@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison
+
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,61 +7,6 @@ import '../models/grupo_model.dart';
 
 class GrupoRepository {
   final _supabase = Supabase.instance.client;
-
-  // --- MÉTODOS DE GESTÃO DE GRUPOS (PROFESSOR) ---
-
-  Future<void> criarGrupo(String nome, String descricao) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw 'Professor não autenticado';
-    try {
-      await _supabase.from('grupos').insert({
-        'nome': nome,
-        'descricao': descricao,
-        'professor_id': user.id,
-      });
-    } catch (e) {
-      throw 'Erro ao criar grupo: $e';
-    }
-  }
-
-  Future<List<GrupoModel>> listarMeusGrupos() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return [];
-    final response = await _supabase
-        .from('grupos')
-        .select()
-        .eq('professor_id', user.id);
-    return (response as List).map((map) => GrupoModel.fromMap(map)).toList();
-  }
-
-  Future<List<Map<String, dynamic>>> listarTodosAlunos() async {
-    try {
-      final response = await _supabase
-          .from('perfis')
-          .select('id, nome, peso_atual, anamnese')
-          .order('nome');
-
-      if (response == null) return [];
-
-      // CORREÇÃO: Mapeamento manual tratando cada valor individualmente
-      // Evita o erro de tipo se id for UUID string e peso for int/double
-      return (response as List).map((item) {
-        final map = item as Map<String, dynamic>;
-        return {
-          'id':
-              map['id']?.toString() ??
-              '', // Garante que o ID do aluno seja String
-          'nome': map['nome']?.toString() ?? 'Sem Nome',
-          'peso_atual':
-              map['peso_atual']?.toString() ??
-              '0', // Converte peso para String seguro
-          'anamnese': map['anamnese']?.toString() ?? 'Não preenchida',
-        };
-      }).toList();
-    } catch (e) {
-      throw 'Erro ao listar alunos: $e';
-    }
-  }
 
   Future<void> adicionarAlunoAoGrupo(String grupoId, String alunoId) async {
     try {
@@ -86,58 +33,6 @@ class GrupoRepository {
     }
   }
 
-  // --- MÉTODOS DE TREINAMENTO (COLETIVO) ---
-
-  // 🟢 Deixe o topo da sua função de salvar treino coletivo no GRUPO_REPOSITORY assim:
-  Future<void> salvarTreinoColetivo({
-    required String grupoId,
-    required dynamic academiaId,
-    required String titulo,
-    required String treino,
-    required String dieta,
-  }) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw 'Acesso negado. Faça login para continuar.';
-
-    try {
-      int? academiaIdInt;
-
-      // Se a tela não enviou o ID da academia, buscamos a primeira cadastrada do professor
-      if (academiaId == null || academiaId.toString().isEmpty) {
-        final buscarAcademia = await _supabase
-            .from('academias')
-            .select('id')
-            .eq('responsavel_id', user.id)
-            .limit(
-              1,
-            ) // 🛑 ISSO EVITA O ERRO 406 CASO EXISTA MAIS DE UMA FILIAL!
-            .maybeSingle();
-
-        if (buscarAcademia != null) {
-          academiaIdInt = int.tryParse(buscarAcademia['id'].toString());
-        }
-      } else {
-        academiaIdInt = int.tryParse(academiaId.toString());
-      }
-
-      if (academiaIdInt == null) {
-        throw 'Nenhuma filial cadastrada ou vinculada encontrada para publicar este treino.';
-      }
-
-      // Agora insere com segurança o treino coletivo no banco
-      await _supabase.from('treinos_coletivos').insert({
-        'grupo_id': grupoId.toString().trim(),
-        'academia_id': academiaIdInt,
-        'titulo': titulo.trim(),
-        'descricao_treino': treino.trim(),
-        'plano_alimentar': dieta.trim(),
-        'professor_id': user.id,
-      });
-    } catch (e) {
-      throw 'Erro ao publicar treino: $e';
-    }
-  }
-
   /// Busca todos os treinos que o aluno já "pagou"
   Future<List<Map<String, dynamic>>> buscarHistoricoAluno() async {
     final user = _supabase.auth.currentUser;
@@ -159,33 +54,6 @@ class GrupoRepository {
   }
 
   /// CORRIGIDO: Proteção contra retornos nulos do perfil devido ao RLS
-  Future<List<Map<String, dynamic>>> buscarMembrosDoGrupo(
-    String grupoId,
-  ) async {
-    try {
-      final response = await _supabase
-          .from('grupo_alunos')
-          .select('aluno_id')
-          .eq('grupo_id', grupoId.trim());
-
-      if (response.isEmpty) {
-        return [];
-      }
-
-      final alunoIds = (response as List)
-          .map((item) => item['aluno_id'].toString())
-          .toList();
-
-      final perfis = await _supabase
-          .from('perfis')
-          .select('id, nome, peso_atual, altura, anamnese')
-          .inFilter('id', alunoIds);
-
-      return List<Map<String, dynamic>>.from(perfis);
-    } catch (e) {
-      throw 'Erro ao carregar membros: $e';
-    }
-  }
 
   /// BUSCA o treino coletivo mais recente do grupo que o aluno faz parte
   Future<Map<String, dynamic>?> buscarTreinoDoMeuGrupo() async {
@@ -412,6 +280,7 @@ class GrupoRepository {
             grupoId.trim(),
           ); // 🛑 REMOVIDO .single() ou .maybeSingle()
 
+      // ignore: unnecessary_null_comparison
       if (response == null) return [];
 
       // Mapeia o retorno garantindo uma lista limpa de Strings de IDs
@@ -453,21 +322,30 @@ class GrupoRepository {
 
   // Substitua a assinatura em grupo_repository.dart por esta versão flexível:
   Future<void> finalizarTreino({
+    required String treinoId,
     required String feedback,
-    required dynamic intensidade, // CORRIGIDO: adicionado a letra 'e'
+    required dynamic intensidade,
     String? fotoUrl,
   }) async {
     final user = _supabase.auth.currentUser;
-    if (user == null) throw 'Sessão expirada. Faça login novamente.';
+
+    if (user == null) {
+      throw 'Sessão expirada. Faça login novamente.';
+    }
 
     try {
       await _supabase.from('treinos_concluidos').insert({
         'aluno_id': user.id,
+
+        // ESSA LINHA É A CORREÇÃO DO BUG
+        'treino_coletivo_id': treinoId,
+
         'feedback_texto': feedback.trim(),
-        'intensidade':
-            int.tryParse(intensidade.toString()) ??
-            3, // CORRIGIDO: adicionado a letra 'e'
+
+        'intensidade': int.tryParse(intensidade.toString()) ?? 3,
+
         'data_conclusao': DateTime.now().toIso8601String(),
+
         'foto_comprovante': fotoUrl,
       });
     } catch (e) {

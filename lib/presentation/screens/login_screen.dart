@@ -135,8 +135,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 // E-MAIL
                 TextField(
                   controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
+                    isDense: true,
                     hintText: "E-mail",
                     hintStyle: const TextStyle(color: Colors.grey),
                     filled: true,
@@ -159,6 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   obscureText: _obscurePassword,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
+                    isDense: true,
                     hintText: "Senha",
                     hintStyle: const TextStyle(color: Colors.grey),
                     filled: true,

@@ -1,9 +1,9 @@
 import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:academy007/presentation/screens/admin_treino_screen.dart';
 import 'package:academy007/presentation/screens/alunos_academia_screen.dart';
+import 'package:academy007/presentation/screens/auditoria_treinos_screen.dart';
 import 'package:academy007/presentation/screens/financeiro_screen.dart';
 import 'package:academy007/presentation/screens/historico_treino_aluno.dart';
-import 'package:academy007/presentation/screens/minha_filial_screen.dart';
 import 'package:academy007/presentation/screens/treino_grupos_screen.dart';
 import 'package:academy007/presentation/screens/treino_screen.dart';
 import 'package:academy007/presentation/widgets/custom_drawer.dart';
@@ -216,14 +216,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-              onPressed: _handleLogout,
-            ),
-            _buildProfilePopup(),
-          ],
+        // 🟢 ALTERADO: Mantido apenas o botão de logout vermelho
+        IconButton(
+          icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+          onPressed: _handleLogout,
         ),
       ],
     );
@@ -391,8 +387,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final supabase = Supabase.instance.client;
                     final user = supabase.auth.currentUser;
 
-                    if (user == null)
+                    if (user == null) {
                       throw 'Sessão expirada. Faça login novamente.';
+                    }
 
                     // Busca o código de acesso da academia do professor logado
                     final academiaResponse = await supabase
@@ -479,19 +476,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
 
+              // 🟢 MODIFICADO: De "Minha Filial" para "Treino Alunos" com rota para Auditoria
               InkWell(
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const MinhaFilialScreen(),
+                      builder: (context) => const AuditoriaTreinosScreen(),
                     ),
                   );
                 },
                 child: _bentoItem(
-                  "Config",
-                  Icons.settings,
-                  "Minha Filial",
+                  "Treinos",
+                  Icons.fitness_center,
+                  "Treino Alunos",
                   Colors.purpleAccent,
                 ),
               ),

@@ -1,3 +1,4 @@
+import 'package:academy007/controller/listar_todos_alunos.dart';
 import 'package:flutter/material.dart';
 import '../../data/repositories/grupo_repository.dart';
 
@@ -17,6 +18,7 @@ class SelecionarAlunosScreen extends StatefulWidget {
 
 class _SelecionarAlunosScreenState extends State<SelecionarAlunosScreen> {
   final GrupoRepository _repository = GrupoRepository();
+  final _grupoRepositoryListarTodosAlunos = GrupoRepositoryListarTodosAlunos();
   List<Map<String, dynamic>> _alunos = [];
   List<String> _idsMembrosAtuais =
       []; // Lista para identificar quem já é do grupo
@@ -39,7 +41,8 @@ class _SelecionarAlunosScreenState extends State<SelecionarAlunosScreen> {
 
     try {
       // 1. Busca todos os alunos cadastrados no sistema
-      final todasAsPessoas = await _repository.listarTodosAlunos();
+      final todasAsPessoas = await _grupoRepositoryListarTodosAlunos
+          .listarTodosAlunos();
 
       // 2. CORREÇÃO: Força o ID do grupo a virar String (UUID) para evitar falha de tipo na query
       final String grupoIdFormatado = widget.grupoId.toString();

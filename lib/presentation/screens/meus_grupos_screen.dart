@@ -1,3 +1,6 @@
+import 'package:academy007/controller/listar_meus_grupos.dart'
+    as _grupoRepositoryListarMeusGrupos;
+import 'package:academy007/controller/listar_meus_grupos.dart';
 import 'package:flutter/material.dart';
 import '../../data/repositories/grupo_repository.dart';
 import '../../data/models/grupo_model.dart';
@@ -19,7 +22,7 @@ class MeusGruposScreen extends StatefulWidget {
 }
 
 class _MeusGruposScreenState extends State<MeusGruposScreen> {
-  final GrupoRepository _repository = GrupoRepository();
+  final _grupoRepositoryListarMeusGrupos = GrupoRepositoryListarMeusGrupos();
   bool _isLoading = true;
   List<GrupoModel> _grupos = [];
 
@@ -31,7 +34,7 @@ class _MeusGruposScreenState extends State<MeusGruposScreen> {
 
   Future<void> _carregarGrupos() async {
     try {
-      final lista = await _repository.listarMeusGrupos();
+      final lista = await _grupoRepositoryListarMeusGrupos.listarMeusGrupos();
       setState(() {
         _grupos = lista;
         _isLoading = false;
