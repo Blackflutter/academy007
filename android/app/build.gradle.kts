@@ -11,6 +11,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // CORRIGIDO: Adicionado 'is' no início e o sinal '='
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -27,6 +29,10 @@ android {
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
+        
+        // CORRIGIDO: Adicionado o sinal '='
+        multiDexEnabled = true
+        
         versionName = flutter.versionName
     }
 
@@ -41,4 +47,9 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // CORRIGIDO: Sintaxe correta com parênteses e aspas duplas para Kotlin
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
