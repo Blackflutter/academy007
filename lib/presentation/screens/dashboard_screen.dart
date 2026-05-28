@@ -48,6 +48,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // 🟢 NOVO: Calcula variação de peso nos últimos 30 dias
+  Future<Map<String, dynamic>?> _calcularVariacao30Dias() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final historico = await supabase
+          .from('historico_peso')
+          .select()
+          .eq('aluno_id', user.id)
+          .order('data_registro', ascending: true);
+
+      if (historico.length < 2) return null;
+
+      final agora = DateTime.now();
+      final dataLimite = agora.subtract(const Duration(days: 30));
+
+      Map<String, dynamic>? registroAntigo;
+
+      for (var registro in historico) {
+        final data = DateTime.parse(registro['data_registro']);
+        if (data.isAfter(dataLimite)) {
+          registroAntigo = registro;
+          break;
+        }
+      }
+
+      if (registroAntigo == null) return null;
+
+      final pesoAtual = historico.last['peso'] as num;
+      final pesoAntigo = registroAntigo['peso'] as num;
+      final diferenca = pesoAtual.toDouble() - pesoAntigo.toDouble();
+
+      return {
+        "atual": pesoAtual.toDouble(),
+        "antigo": pesoAntigo.toDouble(),
+        "diferenca": diferenca,
+      };
+    } catch (e) {
+      debugPrint("Erro ao calcular variação: $e");
+      return null;
+    }
+  }
+
   void _mostrarDialogoPeso(BuildContext context) {
     final controller = TextEditingController();
     showDialog(
@@ -142,6 +186,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ? _buildAcademiaCard(dados['academias'])
                       : _buildIMCCard(context, imc),
 
+                  // 🟢 NOVO: Card de Variação de Peso (só para alunos)
+                  if (!isProfessor) ...[
+                    const SizedBox(height: 15),
+                    _buildVariacaoPesoCard(),
+                  ],
+
                   const SizedBox(height: 30),
                   Text(
                     isProfessor ? "Gestão da Unidade" : "Seu Ecossistema",
@@ -184,6 +234,163 @@ class _DashboardScreenState extends State<DashboardScreen> {
           },
         ),
       ),
+    );
+  }
+
+  // 🟢 NOVO: Widget que mostra a variação de peso nos últimos 30 dias
+  Widget _buildVariacaoPesoCard() {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _calcularVariacao30Dias(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Center(
+              child: SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppTheme.primaryNeon,
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.grey),
+                SizedBox(width: 10),
+                Text(
+                  "Sem dados suficientes para comparação (30 dias)",
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final dados = snapshot.data!;
+        final diferenca = dados['diferenca'] as double;
+
+        IconData icone;
+        Color cor;
+        String texto;
+        String subtitulo;
+
+        if (diferenca < 0) {
+          icone = Icons.arrow_downward;
+          cor = Colors.greenAccent;
+          texto = "-${diferenca.abs().toStringAsFixed(2)} kg";
+          subtitulo = "Nos últimos 30 dias";
+        } else if (diferenca > 0) {
+          icone = Icons.arrow_upward;
+          cor = Colors.redAccent;
+          texto = "+${diferenca.toStringAsFixed(2)} kg";
+          subtitulo = "Nos últimos 30 dias";
+        } else {
+          icone = Icons.remove;
+          cor = Colors.grey;
+          texto = "Sem alteração";
+          subtitulo = "Nos últimos 30 dias";
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: cor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: cor.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(icone, color: cor, size: 28),
+              const SizedBox(width: 15),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    texto,
+                    style: TextStyle(
+                      color: cor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    subtitulo,
+                    style: TextStyle(color: cor.withOpacity(0.7), fontSize: 12),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMetaInteligente() {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _repository.calcularMetaInteligente(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data == null) {
+          return const SizedBox();
+        }
+
+        final dados = snapshot.data!;
+        final percentual = dados['percentual'] as double;
+        final dias = dados['diasPrevistos'];
+
+        return Container(
+          margin: const EdgeInsets.only(top: 15),
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryNeon.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "META INTELIGENTE",
+                style: TextStyle(fontSize: 12, color: Colors.white70),
+              ),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: percentual / 100,
+                color: AppTheme.primaryNeon,
+                backgroundColor: Colors.white10,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "${percentual.toStringAsFixed(1)}% da meta concluída",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (dias != null)
+                Text(
+                  "Previsão: ${dias.toStringAsFixed(0)} dias",
+                  style: const TextStyle(color: Colors.white70),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -501,20 +708,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Colors.orangeAccent,
               ),
             ]
+          // Para ALUNO
           : [
               GestureDetector(
                 onTap: () => _mostrarDialogoPeso(context),
                 child: _bentoItem(
                   "Peso",
                   Icons.monitor_weight_outlined,
-                  "${dados?['peso_atual'] ?? 0} kg",
+                  "${(dados?['peso_atual'] ?? 0).toStringAsFixed(2)} kg",
                   Colors.blueAccent,
                 ),
               ),
               _bentoItem(
                 "Altura",
                 Icons.height,
-                "${dados?['altura'] ?? 0} m",
+                "${(dados?['altura'] ?? 0).toStringAsFixed(2)} m",
                 Colors.orangeAccent,
               ),
               _bentoItem(

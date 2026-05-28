@@ -15,20 +15,62 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  final SupabaseClient supabase = Supabase.instance.client;
 
-  // Lista das abas originais mantidas intactas
-  final List<Widget> _paginas = [
-    const DashboardScreen(), // Aba 0: Resumo e Progresso
-    const NutricaoScreen(), // Aba 1: Lista de Categorias
-    const HistoricoAlunosScreen(), // Aba 2: Histórico detalhado
-    const PerfilScreen(), // Aba 3: Perfil e Configurações
+  int _currentIndex = 0;
+  bool _isCheckingPlano = true;
+
+  final List<Widget> _paginas = const [
+    DashboardScreen(),
+    NutricaoScreen(),
+    HistoricoAlunosScreen(),
+    PerfilScreen(),
   ];
 
-  // 🟢 FUNÇÃO DE LOGOUT: Executada ao clicar no botão Sair da AppBar
+  @override
+  void initState() {
+    super.initState();
+    _verificarAssinatura();
+  }
+
+  Future<void> _verificarAssinatura() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final perfil = await supabase
+          .from('perfis')
+          .select()
+          .eq('id', user.id)
+          .single();
+
+      final academiaId = perfil['academia_id'];
+
+      if (academiaId != null) {
+        final assinatura = await supabase
+            .from('assinaturas')
+            .select()
+            .eq('academia_id', academiaId)
+            .eq('status', 'ativo')
+            .maybeSingle();
+
+        if (assinatura == null) {
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, AppRoutes.assinatura);
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() => _isCheckingPlano = false);
+    }
+  }
+
   Future<void> _fazerLogout(BuildContext context) async {
     try {
-      await Supabase.instance.client.auth.signOut();
+      await supabase.auth.signOut();
       if (context.mounted) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
@@ -43,8 +85,14 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingPlano) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
-      // 🟢 ALTERADO: A AppBar global foi removida daqui para eliminar a duplicidade
       body: IndexedStack(index: _currentIndex, children: _paginas),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(

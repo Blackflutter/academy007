@@ -4,6 +4,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthRepository {
   final _supabase = Supabase.instance.client;
 
+  Future<Map<String, dynamic>?> getAcademiaAssinatura(
+    dynamic academiaId,
+  ) async {
+    final response = await _supabase
+        .from('assinaturas')
+        .select()
+        .eq('academia_id', academiaId)
+        .eq('status', 'ativo')
+        .maybeSingle();
+
+    return response;
+  }
+
   // --- ADICIONE ESTE MÉTODO AQUI ---
   Future<Map<String, dynamic>> getUserProfile() async {
     final user =

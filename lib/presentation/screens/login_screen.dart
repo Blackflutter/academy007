@@ -1,14 +1,9 @@
+import 'package:academy007/data/repositories/auth_repository.dart';
 import 'package:academy007/main_screens.dart';
 import 'package:academy007/presentation/screens/registro_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_theme.dart';
-import '../../data/repositories/auth_repository.dart';
-
-// IMPORTANTE: Se essas telas não existirem ainda, o Flutter dará erro.
-// Se ainda não criou, aponte temporariamente todas para MainScreen()
-// import 'package:academy007/presentation/screens/admin_main_screen.dart';
-// import 'package:academy007/presentation/screens/individual_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,167 +48,190 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Faz o login no Supabase
       await _authRepo.signIn(email, password);
-
-      // 2. Busca o perfil (cargo e academia_id)
       final userProfile = await _authRepo.getUserProfile();
 
-      if (mounted) {
-        // 3. Lógica de Redirecionamento (Matriz/Filial)
-        final cargo = userProfile['cargo'];
-        final academiaId = userProfile['academia_id'];
+      if (!mounted) return;
 
-        if (cargo == 'professor' || cargo == 'dono') {
-          // TODO: Criar a AdminMainScreen
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const MainScreen(),
-            ), // Troque pela AdminMainScreen quando criar
-          );
-        } else if (academiaId == null) {
-          // Aluno Individual
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const MainScreen(),
-            ), // Troque pela IndividualMainScreen quando criar
-          );
-        } else {
-          // Aluno vinculado à Academia
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const MainScreen()),
-          );
+      final cargo = userProfile['cargo'];
+      final academiaId = userProfile['academia_id'];
+
+      if (academiaId != null) {
+        final assinatura = await _authRepo.getAcademiaAssinatura(academiaId);
+
+        if (assinatura == null || assinatura['status'] != 'ativo') {
+          Navigator.pushReplacementNamed(context, '/assinatura');
+          return;
         }
       }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+      );
     } catch (e) {
-      if (mounted) _showSnackBar(e.toString());
+      if (mounted) _showSnackBar("Erro ao entrar: ${e.toString()}");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    bool obscure = false,
+    Widget? suffix,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscure,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white38),
+        prefixIcon: Icon(icon, color: AppTheme.primaryNeon),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.04),
+        contentPadding: const EdgeInsets.symmetric(vertical: 18),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(40),
+          borderSide: BorderSide(color: AppTheme.primaryNeon.withOpacity(0.15)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(40),
+          borderSide: const BorderSide(color: AppTheme.primaryNeon, width: 1.2),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // Garante fundo escuro para o tema neon
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            padding: const EdgeInsets.symmetric(horizontal: 36),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // LOGO
-                Image.asset(
-                  'assets/images/logo.jpg',
-                  height: 100,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.fitness_center,
-                    size: 80,
-                    color: AppTheme.primaryNeon,
+                /// LOGO COM GLOW
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryNeon.withOpacity(0.25),
+                        blurRadius: 40,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: Image.asset(
+                    'assets/images/logo.jpg',
+                    height: 85,
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.fitness_center,
+                      size: 80,
+                      color: AppTheme.primaryNeon,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
+
+                const SizedBox(height: 25),
+
                 const Text(
                   "ACADEMY007",
                   style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
-                    letterSpacing: 1.5,
+                    letterSpacing: 2,
                   ),
                 ),
+
+                const SizedBox(height: 6),
+
                 const Text(
-                  "Seu treino começa aqui.",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                  "Performance começa aqui.",
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-                const SizedBox(height: 50),
 
-                // E-MAIL
-                TextField(
+                const SizedBox(height: 55),
+
+                _buildInputField(
                   controller: _emailController,
+                  hint: "E-mail",
+                  icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: "E-mail",
-                    hintStyle: const TextStyle(color: Colors.grey),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                    prefixIcon: const Icon(
-                      Icons.email_outlined,
-                      color: AppTheme.primaryNeon,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
                 ),
-                const SizedBox(height: 20),
 
-                // SENHA
-                TextField(
+                const SizedBox(height: 18),
+
+                _buildInputField(
                   controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: "Senha",
-                    hintStyle: const TextStyle(color: Colors.grey),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
-                    prefixIcon: const Icon(
-                      Icons.lock_outline,
-                      color: AppTheme.primaryNeon,
+                  hint: "Senha",
+                  icon: Icons.lock_outline,
+                  obscure: _obscurePassword,
+                  suffix: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: Colors.white38,
                     ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
-                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
-                const SizedBox(height: 40),
 
-                // BOTÃO ENTRAR
+                const SizedBox(height: 45),
+
+                /// BOTÃO GRADIENTE
                 SizedBox(
                   width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryNeon,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                  height: 58,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(40),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF39FF14), Color(0xFF00FF87)],
                       ),
                     ),
-                    onPressed: _isLoading ? null : _handleLogin,
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.black)
-                        : const Text(
-                            "ENTRAR",
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(40),
+                        ),
+                      ),
+                      onPressed: _isLoading ? null : _handleLogin,
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.black)
+                          : const Text(
+                              "ENTRAR",
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
                             ),
-                          ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 25),
 
-                // BOTÃO REGISTRO
+                const SizedBox(height: 28),
+
                 TextButton(
                   onPressed: () => Navigator.push(
                     context,
@@ -221,7 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: const Text(
                     "Não tem conta? Cadastre-se",
-                    style: TextStyle(color: Colors.white70),
+                    style: TextStyle(color: Colors.white54, fontSize: 13),
                   ),
                 ),
               ],
