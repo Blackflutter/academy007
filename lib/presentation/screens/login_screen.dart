@@ -95,11 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
         prefixIcon: Icon(icon, color: AppTheme.primaryNeon),
         suffixIcon: suffix,
         filled: true,
-        fillColor: Colors.white.withOpacity(0.04),
+        fillColor: Colors.white.withValues(alpha: 0.04),
         contentPadding: const EdgeInsets.symmetric(vertical: 18),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(40),
-          borderSide: BorderSide(color: AppTheme.primaryNeon.withOpacity(0.15)),
+          borderSide: BorderSide(
+            color: AppTheme.primaryNeon.withValues(alpha: 0.15),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(40),
@@ -126,14 +128,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: AppTheme.primaryNeon.withOpacity(0.25),
+                        color: AppTheme.primaryNeon.withValues(alpha: 0.25),
                         blurRadius: 40,
                         spreadRadius: 5,
                       ),
                     ],
                   ),
                   child: Image.asset(
-                    'assets/images/logo.jpg',
+                    'assets/images/logo.png',
                     height: 85,
                     errorBuilder: (context, error, stackTrace) => const Icon(
                       Icons.fitness_center,

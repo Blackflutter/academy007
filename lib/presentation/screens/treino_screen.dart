@@ -56,15 +56,12 @@ class _TreinoScreenState extends State<TreinoScreen> {
     final String nomeEx = exercicio['nome'];
 
     try {
-      // 1. Chama o banco de dados
       await _repository.concluirExercicio(exId);
 
-      // 2. Remove da lista local usando o ID (mais seguro que index)
       setState(() {
         _exerciciosRestantes.removeWhere((item) => item['id'] == exId);
       });
 
-      // 3. Feedback visual
       if (_exerciciosRestantes.isEmpty) {
         _confettiController.play();
       }
@@ -112,6 +109,11 @@ class _TreinoScreenState extends State<TreinoScreen> {
       ),
       appBar: AppBar(
         title: const Text("Treino do Dia"),
+        // 1. 🟢 CORREÇÃO: Força o botão de voltar físico/padrão da barra a passar o resultado 'true'
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context, true),
+        ),
         actions: [
           if (!_isLoading && _exerciciosRestantes.isNotEmpty)
             Center(
@@ -174,7 +176,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
           vertical: 10,
         ),
         leading: const Icon(
-          Icons.fitness_center, // Mudado para ícone de peso
+          Icons.fitness_center,
           color: AppTheme.primaryNeon,
           size: 35,
         ),
@@ -238,7 +240,8 @@ class _TreinoScreenState extends State<TreinoScreen> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              onPressed: () => Navigator.pop(context),
+              // 2. 🟢 CORREÇÃO: Força o botão verde de sucesso a retornar 'true' para atualizar a tela anterior
+              onPressed: () => Navigator.pop(context, true),
               child: const Text(
                 "VOLTAR",
                 style: TextStyle(

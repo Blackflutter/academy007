@@ -1,45 +1,88 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 class NotificacoesService {
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
 
+  /// Inicializa o serviço e configura permissões
   Future<void> inicializar() async {
-    const androidConfig = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosConfig = DarwinInitializationSettings();
-    
-    await _plugin.initialize(
-      const InitializationSettings(android: androidConfig, iOS: iosConfig)
+    // Inicializa dados de fuso horário (obrigatório para agendamento)
+    tz.initializeTimeZones();
+
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
     );
+
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    await _localNotifications.initialize(initSettings);
   }
 
+  /// Agenda um alarme/notificação local
   Future<void> agendarBeepLocal({
     required int id,
     required String titulo,
     required String corpo,
     required DateTime horarioAgendado,
   }) async {
-    // Configura o canal para forçar o som e o uso de beep padrão do sistema
-    const androidDetalhes = AndroidNotificationDetails(
-      'canal_alimentacao_007',
-      'Alertas de Alimentação',
+    const androidDetails = AndroidNotificationDetails(
+      'academy007_alarmes',
+      'Alarmes do App',
+      channelDescription: 'Canal para alertas de treinos e refeições',
       importance: Importance.max,
       priority: Priority.high,
-      playSound: true, // Garante a execução do som
+      playSound: true,
       enableVibration: true,
     );
 
-    const iosDetalhes = DarwinNotificationDetails(presentSound: true);
+    const iosDetails = DarwinNotificationDetails(
+      presentSound: true,
+      presentAlert: true,
+      presentBadge: true,
+    );
 
-    await _plugin.zonedSchedule(
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    final tz.TZDateTime tempoConvertido = tz.TZDateTime.from(
+      horarioAgendado,
+      tz.local,
+    );
+
+    await _localNotifications.zonedSchedule(
       id,
       titulo,
       corpo,
-      tz.TZDateTime.from(horarioAgendado, tz.local),
-      const NotificationDetails(android: androidDetalhes, iOS: iosDetalhes),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle, // Toca mesmo com o app fechado
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time, // Repete todo dia nesse horário
+      tempoConvertido,
+      notificationDetails,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      matchDateTimeComponents:
+          DateTimeComponents.time, // Repete diariamente no mesmo horário
     );
+  }
+
+  /// Cancela um alarme específico
+  Future<void> cancelarAlarme(int id) async {
+    await _localNotifications.cancel(id);
+  }
+
+  /// Cancela todos os alarmes
+  Future<void> cancelarTodosOsAlarmes() async {
+    await _localNotifications.cancelAll();
   }
 }

@@ -1,6 +1,7 @@
 import 'package:academy007/core/router/app_routes.dart';
 import 'package:academy007/core/theme/app_theme.dart';
-import 'package:academy007/presentation/screens/assinatura_screen.dart'; // ← Adicionado
+import 'package:academy007/presentation/screens/assinatura_screen.dart';
+import 'package:academy007/data/sources/alarmenotification.dart';
 import 'package:academy007/presentation/screens/cadastro_plano_alimentar_screen.dart';
 import 'package:academy007/presentation/screens/login_screen.dart';
 import 'package:academy007/presentation/screens/registro_screen.dart';
@@ -9,6 +10,7 @@ import 'package:academy007/presentation/screens/historico_screen.dart';
 import 'package:academy007/main_screens.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:academy007/data/sources/notification.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +22,19 @@ void main() async {
 
   final session = Supabase.instance.client.auth.currentSession;
   final bool usuarioEstaLogado = session != null;
+
+  // Configuração dos alarmes se já estiver logado
+  if (usuarioEstaLogado) {
+    try {
+      final notificacoes = NotificacoesService();
+      await notificacoes.inicializar();
+
+      final alarmeController = AlarmeController();
+      await alarmeController.sincronizarAlarmesAluno();
+    } catch (e) {
+      print('Erro ao carregar alarmes na inicialização: $e');
+    }
+  }
 
   runApp(Academy007App(iniciarLogado: usuarioEstaLogado));
 }

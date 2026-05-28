@@ -1,5 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<<<<<<< HEAD
 <uses-permission android:name="android.permission.INTERNET"/>
+=======
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" /> <!-- Necessário para Android 13+ -->
+
+>>>>>>> 4215483e80cab869c7e983f3044f4dbeb66ca726
     <application
         android:label="academy007"
         android:name="${applicationName}"

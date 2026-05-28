@@ -1,6 +1,8 @@
+import 'package:academy007/data/sources/alarmenotification.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
+// 🟢 IMPORTAÇÃO DO CONTROLADOR DE ALARMES
 
 class CadastroPlanoAlimentarScreen extends StatefulWidget {
   const CadastroPlanoAlimentarScreen({super.key});
@@ -21,6 +23,9 @@ class _CadastroPlanoAlimentarScreenState
   TimeOfDay _horarioSelecionado = const TimeOfDay(hour: 08, minute: 00);
   String _diaSelecionado = 'Segunda-feira';
   bool _isSaving = false;
+
+  // 🟢 VARIÁVEL DE CONTROLE DO ALARME
+  bool _notificarAtivo = true;
 
   final List<String> _diasDaSemana = [
     'Segunda-feira',
@@ -56,23 +61,26 @@ class _CadastroPlanoAlimentarScreenState
     }
 
     try {
-      // Formata a hora para HH:mm:00 (formato aceito pelo tipo 'time' do Postgres)
       final horaFormatada =
           "${_horarioSelecionado.hour.toString().padLeft(2, '0')}:${_horarioSelecionado.minute.toString().padLeft(2, '0')}:00";
 
+      // 1. Envia os dados estruturados para a tabela
       await Supabase.instance.client.from('plano_alimentar').insert({
         'aluno_id': user.id,
         'horario': horaFormatada,
         'titulo': _tituloController.text.trim(),
-        'descricao': _descController.text.trim(), // Sem acento agora
+        'descricao': _descController.text.trim(),
         'proteina_g': int.tryParse(_proteinaController.text) ?? 0,
         'carbo_g': int.tryParse(_carboController.text) ?? 0,
-        'concluido': false, // Sem acento agora
+        'concluido': false,
         'dia_semana': _diaSelecionado,
+        'notificar': _notificarAtivo,
       });
 
+      // 2. Atualiza a lista de bipes locais
+      await AlarmeController().sincronizarAlarmesAluno();
+
       if (mounted) {
-        // Retorna true para atualizar a lista na tela anterior
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -86,13 +94,23 @@ class _CadastroPlanoAlimentarScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            // 🟢 CORREÇÃO: Removido o caractere de escape incorreto para exibir a mensagem real do banco
             content: Text("Erro no banco: ${e.message}"),
             backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
     } catch (e) {
       debugPrint("ERRO INESPERADO: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro inesperado: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -226,17 +244,45 @@ class _CadastroPlanoAlimentarScreenState
                     onPressed: _selecionarHora,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white10,
+                      foregroundColor: Colors.white,
                     ),
-                    child: const Text(
-                      "ESCOLHER",
-                      style: TextStyle(color: Colors.white),
-                    ),
+                    child: const Text("Alterar"),
                   ),
                 ),
+                const SizedBox(height: 15),
 
+                // 🟢 INTERRUPTOR VISUAL PARA CONFIGURAR O ALARME LOCAL
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white10),
+                    borderRadius: BorderRadius.circular(8),
+                    color: AppTheme.glassColor,
+                  ),
+                  child: SwitchListTile(
+                    title: const Text(
+                      'Ativar Alarme / Beep',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Tocar aviso sonoro no smartphone na hora desta refeição',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    value: _notificarAtivo,
+                    activeColor: AppTheme.primaryNeon,
+                    onChanged: (bool value) {
+                      setState(() {
+                        _notificarAtivo = value;
+                      });
+                    },
+                  ),
+                ),
                 const SizedBox(height: 40),
 
-                // Botão Salvar
+                // Botão de Envio do Formulário
                 SizedBox(
                   width: double.infinity,
                   height: 55,

@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class TreinoRepository {
   final _supabase = Supabase.instance.client;
 
-  /// Busca exercícios por categoria
+  /// Busca exercícios por categoria (Apenas os não concluídos para não voltarem como fantasma)
   Future<List<Map<String, dynamic>>> buscarExerciciosPorCategoria(
     int categoriaId,
   ) async {
@@ -12,6 +12,10 @@ class TreinoRepository {
           .from('exercicios')
           .select()
           .eq('categoria_id', categoriaId)
+          .eq(
+            'concluido',
+            false,
+          ) // 🟢 CORREÇÃO: Garante que os concluídos sumam da listagem geral
           .order('nome', ascending: true);
     } catch (e) {
       throw 'Erro ao buscar exercícios: $e';
@@ -31,46 +35,37 @@ class TreinoRepository {
     }
   }
 
-  /// REPOSITÓRIO ATUALIZADO
+  /// Busca exercícios pendentes mapeando os tipos com segurança
   Future<List<Map<String, dynamic>>> buscarExerciciosNaoConcluidos(
     int categoriaId,
   ) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return [];
-
-    final hoje = DateTime.now().toIso8601String().substring(0, 10);
-
     try {
-      // 1. Primeiro, buscamos os IDs dos exercícios que o aluno JÁ FEZ hoje
-      final concluidoshoje = await _supabase
-          .from('treinos_concluidos')
-          .select('exercicio_id')
-          .eq('aluno_id', user.id)
-          .gte('data_conclusao', hoje);
-
-      // Criamos uma lista só com os IDs: [1, 5, 8...]
-      final List<int> idsConcluidos = List<int>.from(
-        concluidoshoje.map((item) => item['exercicio_id']),
-      );
-
-      // 2. Agora buscamos os exercícios da categoria que NÃO ESTÃO nessa lista de IDs
-      var query = _supabase
+      final List<dynamic> response = await _supabase
           .from('exercicios')
           .select()
-          .eq('categoria_id', categoriaId);
+          .eq('categoria_id', categoriaId)
+          .eq('concluido', false);
 
-      if (idsConcluidos.isNotEmpty) {
-        // O filtro 'not.in' exclui os IDs que já foram concluídos
-        query = query.not('id', 'in', idsConcluidos);
-      }
-
-      return await query.order('nome', ascending: true);
+      return List<Map<String, dynamic>>.from(
+        response.map((item) {
+          return {
+            'id': int.tryParse(item['id'].toString()) ?? 0,
+            'categoria_id':
+                int.tryParse(item['categoria_id'].toString()) ?? categoriaId,
+            'nome': item['nome'] ?? 'Sem nome',
+            'descricao': item['descricao'] ?? '',
+            'concluido':
+                item['concluido'] ??
+                false, // 🟢 CORREÇÃO: Mantém o estado boolean explícito na memória
+          };
+        }),
+      );
     } catch (e) {
       throw 'Erro ao filtrar exercícios: $e';
     }
   }
 
-  /// Registra que o aluno completou o exercício no histórico
+  /// Registra que o aluno completou o exercício alterando a flag na tabela
   Future<void> concluirExercicio(int exercicioId) async {
     final user = _supabase.auth.currentUser;
 
@@ -79,11 +74,10 @@ class TreinoRepository {
     }
 
     try {
-      await _supabase.from('treinos_concluidos').insert({
-        'aluno_id': user.id,
-        'exercicio_id': exercicioId,
-        'data_conclusao': DateTime.now().toIso8601String(),
-      });
+      await _supabase
+          .from('exercicios')
+          .update({'concluido': true})
+          .eq('id', exercicioId);
     } on PostgrestException catch (e) {
       throw 'Erro ao salvar conclusão: ${e.message}';
     } catch (e) {
@@ -91,13 +85,12 @@ class TreinoRepository {
     }
   }
 
-  /// NOVO: Busca o histórico completo com o nome do exercício (Join)
+  /// Busca o histórico completo com o nome do exercício (Join)
   Future<List<Map<String, dynamic>>> buscarHistoricoCompleto() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return [];
 
     try {
-      // O 'exercicios(*)' busca os dados da tabela relacionada
       final response = await _supabase
           .from('treinos_concluidos')
           .select('*, exercicios(*)')
@@ -110,23 +103,20 @@ class TreinoRepository {
     }
   }
 
-  /// NOVO: Busca o total de treinos realizados hoje (para a Dashboard)
+  /// Busca o total de treinos realizados hoje (para a Dashboard)
   Future<int> buscarTotalTreinosHoje() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return 0;
 
-    // Formato YYYY-MM-DD
     final hoje = DateTime.now().toIso8601String().substring(0, 10);
 
     try {
-      // A forma mais estável de contar registros atualmente:
       final response = await _supabase
           .from('treinos_concluidos')
-          .select() // Busca os registros
+          .select()
           .eq('aluno_id', user.id)
           .gte('data_conclusao', hoje);
 
-      // Retornamos o tamanho da lista gerada
       return (response as List).length;
     } catch (e) {
       return 0;
