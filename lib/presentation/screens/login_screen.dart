@@ -135,8 +135,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   child: Image.asset(
-                    'assets/images/logo.png',
-                    height: 85,
+                    'assets/images/logo.jpg',
+                    height: 180,
                     errorBuilder: (context, error, stackTrace) => const Icon(
                       Icons.fitness_center,
                       size: 80,
@@ -162,8 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Text(
                   "Performance começa aqui.",
                   style: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 13,
+                    color: AppTheme.primaryNeon,
+                    fontSize: 23,
                     letterSpacing: 0.5,
                   ),
                 ),

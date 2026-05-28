@@ -76,54 +76,67 @@ class _ViewTreinoGrupoWidgetState extends State<ViewTreinoGrupoWidget> {
   Future<void> _definirHorarioTreino(String grupoId) async {
     final TimeOfDay? picked = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 08, minute: 00),
+      initialTime: const TimeOfDay(hour: 8, minute: 0),
     );
 
-    if (picked != null) {
-      final horaFormatada =
-          "\({picked.hour.toString().padLeft(2, '0')}:\){picked.minute.toString().padLeft(2, '0')}:00";
+    if (picked == null) return;
 
-      try {
-        await _supabase
-            .from('treinos_coletivos')
-            .update({'horario': horaFormatada, 'notificar': true})
-            .eq('grupo_id', grupoId);
+    final horaFormatada =
+        "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}:00";
 
-        setState(() {
-          _horarioLocal = horaFormatada;
-          _notificarLocal = true;
-        });
+    try {
+      final response = await _supabase
+          .from('treinos_coletivos')
+          .update({'horario': horaFormatada, 'notificar': true})
+          .eq('grupo_id', grupoId)
+          .select();
 
-        await AlarmeController().sincronizarAlarmesAluno();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Horário definido e lembrete ativado!"),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } catch (e) {
-        debugPrint("Erro ao salvar horário: \$e");
+      if (response.isEmpty) {
+        debugPrint("Nenhuma linha foi atualizada. Verifique grupo_id.");
+        return;
       }
+
+      setState(() {
+        _horarioLocal = horaFormatada;
+        _notificarLocal = true;
+      });
+
+      await AlarmeController().sincronizarAlarmesAluno();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Horário definido e lembrete ativado!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Erro ao salvar horário: $e");
     }
   }
 
   // 🟢 FUNÇÃO: Liga/desliga o lembrete sonoro do treino coletivo
   Future<void> _alternarNotificacao(bool valor, String grupoId) async {
-    setState(() => _notificarLocal = valor);
-
     try {
-      await _supabase
+      final response = await _supabase
           .from('treinos_coletivos')
           .update({'notificar': valor})
-          .eq('grupo_id', grupoId);
+          .eq('grupo_id', grupoId)
+          .select();
+
+      if (response.isEmpty) {
+        debugPrint("Nenhuma linha foi atualizada ao alternar notificação.");
+        return;
+      }
+
+      setState(() {
+        _notificarLocal = valor;
+      });
 
       await AlarmeController().sincronizarAlarmesAluno();
     } catch (e) {
-      debugPrint("Erro ao alternar alarme: \$e");
-      setState(() => _notificarLocal = !valor);
+      debugPrint("Erro ao alternar alarme: $e");
     }
   }
 

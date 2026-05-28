@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:academy007/data/repositories/academia_repository.dart'; // Ajuste o caminho conforme o seu projeto
+import 'package:academy007/data/repositories/academia_repository.dart';
 
 class DashboardProfessorScreen extends StatefulWidget {
   const DashboardProfessorScreen({super.key});
@@ -16,12 +16,13 @@ class _DashboardProfessorScreenState extends State<DashboardProfessorScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicializa a busca segura e blindada contra o erro 406
+    _dadosUnidadeFuture = _academiaRepository.buscarDadosConsolidados();
   }
 
-  // Função para recarregar os dados caso necessário
   void _atualizarDashboard() {
-    setState(() {});
+    setState(() {
+      _dadosUnidadeFuture = _academiaRepository.buscarDadosConsolidados();
+    });
   }
 
   @override
@@ -37,46 +38,52 @@ class _DashboardProfessorScreenState extends State<DashboardProfessorScreen> {
             );
           }
 
-          // Trata caso ocorra algum erro ou a tabela esteja limpa
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                "Erro ao carregar dados",
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            );
+          }
+
           final dados = snapshot.data;
+
           final String nomeUnidade = dados?['nome'] ?? "SEM UNIDADE";
           final String codigoAcesso =
               dados?['codigo_acesso']?.toString() ?? "------";
+
+          final int totalAlunos = dados?['total_alunos'] ?? 0;
+
+          final double mediaImc =
+              (dados?['media_imc'] as num?)?.toDouble() ?? 0.0;
 
           return RefreshIndicator(
             onRefresh: () async => _atualizarDashboard(),
             color: const Color(0xFF00FF66),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 24.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Bem-vindo de volta,",
-                    style: TextStyle(color: Colors.grey, fontSize: 14),
-                  ),
-                  const Text(
-                    "GUGA",
+                    "Dashboard da Unidade",
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 20),
 
-                  // 🟢 CARD "MINHA UNIDADE" (TOTALMENTE SEGURO AGORA)
+                  // CARD UNIDADE
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(
-                        0xFF004D40,
-                      ), // Tom de verde escuro igual ao seu print
+                      color: const Color(0xFF004D40),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Column(
@@ -84,46 +91,59 @@ class _DashboardProfessorScreenState extends State<DashboardProfessorScreen> {
                       children: [
                         const Text(
                           "MINHA UNIDADE",
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(color: Colors.white60, fontSize: 12),
                         ),
                         const SizedBox(height: 5),
                         Text(
                           nomeUnidade,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 28,
+                            fontSize: 26,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 25),
-                        Row(
-                          children: [
-                            Text(
-                              "CÓDIGO: $codigoAcesso",
-                              style: const TextStyle(
-                                color: Color(0xFF00FF66),
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.1,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Icon(
-                              Icons.copy,
-                              color: Colors.white54,
-                              size: 18,
-                            ),
-                          ],
+                        const SizedBox(height: 15),
+                        Text(
+                          "CÓDIGO: $codigoAcesso",
+                          style: const TextStyle(
+                            color: Color(0xFF00FF66),
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
                   ),
 
+                  const SizedBox(height: 25),
+
+                  const Text(
+                    "Indicadores",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _metricCard("Alunos", totalAlunos.toString()),
+                      ),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: _metricCard(
+                          "Média IMC",
+                          mediaImc.toStringAsFixed(2),
+                        ),
+                      ),
+                    ],
+                  ),
+
                   const SizedBox(height: 30),
+
                   const Text(
                     "Gestão da Unidade",
                     style: TextStyle(
@@ -132,18 +152,13 @@ class _DashboardProfessorScreenState extends State<DashboardProfessorScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 15),
 
-                  // --- GRID OU LISTA DOS SEUS BOTÕES BENTO (Alunos, Financeiro, etc.) ---
                   Row(
                     children: [
                       Expanded(
-                        child: _bentoItem(
-                          "Alunos",
-                          Icons.group,
-                          "Ver Lista",
-                          Colors.white10,
-                        ),
+                        child: _bentoItem("Alunos", Icons.group, "Ver Lista"),
                       ),
                       const SizedBox(width: 15),
                       Expanded(
@@ -151,7 +166,6 @@ class _DashboardProfessorScreenState extends State<DashboardProfessorScreen> {
                           "Financeiro",
                           Icons.payments,
                           "Fluxo de Caixa",
-                          Colors.white10,
                         ),
                       ),
                     ],
@@ -165,13 +179,36 @@ class _DashboardProfessorScreenState extends State<DashboardProfessorScreen> {
     );
   }
 
-  // Exemplo do seu widget customizado de botões do menu bento
-  Widget _bentoItem(
-    String titulo,
-    IconData icone,
-    String subtitulo,
-    Color cor,
-  ) {
+  Widget _metricCard(String titulo, String valor) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            valor,
+            style: const TextStyle(
+              color: Color(0xFF00FF66),
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bentoItem(String titulo, IconData icone, String subtitulo) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

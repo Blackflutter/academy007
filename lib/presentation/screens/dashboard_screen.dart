@@ -1,3 +1,4 @@
+import 'package:academy007/data/repositories/academia_repository.dart';
 import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:academy007/presentation/screens/admin_treino_screen.dart';
 import 'package:academy007/presentation/screens/alunos_academia_screen.dart';
@@ -143,9 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      drawer:
-          const CustomDrawer(), // O botão "Gerenciar" ficará travado até ele escolher um grupo
-
+      drawer: const CustomDrawer(),
       backgroundColor: AppTheme.darkBackground,
       body: SafeArea(
         child: FutureBuilder<Map<String, dynamic>?>(
@@ -158,9 +157,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }
 
             final dados = snapshot.data;
-            if (dados == null)
-              // ignore: curly_braces_in_flow_control_structures
+            if (dados == null) {
               return const Center(child: Text("Perfil não encontrado"));
+            }
 
             final bool isProfessor = dados['cargo'] == 'professor';
 
@@ -181,18 +180,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _buildHeader(dados['nome'] ?? "Atleta"),
                   const SizedBox(height: 30),
 
-                  // Lógica Matriz/Filial: Mostra Academia para Professor ou IMC para Aluno
                   isProfessor
                       ? _buildAcademiaCard(dados['academias'])
                       : _buildIMCCard(context, imc),
 
-                  // 🟢 NOVO: Card de Variação de Peso (só para alunos)
+                  // ✅ MÉTRICAS DO PROFESSOR FORA DO GRID
+                  if (isProfessor) ...[
+                    const SizedBox(height: 20),
+                    _buildMetricasProfessor(),
+                  ],
+
+                  // ✅ VARIAÇÃO DO ALUNO
                   if (!isProfessor) ...[
                     const SizedBox(height: 15),
                     _buildVariacaoPesoCard(),
                   ],
 
-                  const SizedBox(height: 30),
                   Text(
                     isProfessor ? "Gestão da Unidade" : "Seu Ecossistema",
                     style: const TextStyle(
@@ -200,39 +203,220 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 15),
 
                   if (!isProfessor) const ViewTreinoGrupoWidget(),
 
                   _buildBentoGrid(dados, isProfessor),
 
-                  const SizedBox(height: 30),
                   if (!isProfessor) ...[
                     _buildActionCard(),
-                    const Text(
-                      "Sua Evolução",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
                     const SizedBox(height: 15),
                     FutureBuilder<List<Map<String, dynamic>>>(
                       future: _repository.buscarHistoricoPeso(),
                       builder: (context, snapshot) {
-                        if (!snapshot.hasData)
-                          // ignore: curly_braces_in_flow_control_structures
+                        if (!snapshot.hasData) {
                           return const LinearProgressIndicator();
+                        }
                         return EvolucaoChart(historico: snapshot.data!);
                       },
                     ),
                   ],
-                  const SizedBox(height: 30),
                 ],
               ),
             );
           },
         ),
+      ),
+    );
+  }
+
+  //* NOVO: Widget que mostra as principais métricas para o professor
+  Widget _buildMetricasProfessor() {
+    final repo = AcademiaRepository();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// ✅ GRID DE 3 MÉTRICAS
+        FutureBuilder<Map<String, dynamic>?>(
+          future: repo.buscarDadosConsolidados(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const SizedBox();
+
+            final dados = snapshot.data!;
+            final totalAlunos = dados['total_alunos'] ?? 0;
+            final mediaImc = (dados['media_imc'] as num?)?.toDouble() ?? 0.0;
+
+            return FutureBuilder<double>(
+              future: repo.buscarEvolucaoMedia(),
+              builder: (context, snapshotEvo) {
+                final variacao = snapshotEvo.data ?? 0.0;
+
+                return GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3, // ✅ 3 COLUNAS
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  childAspectRatio: 1.2,
+                  children: [
+                    _metricCard(
+                      "Alunos",
+                      totalAlunos.toString(),
+                      AppTheme.primaryNeon,
+                    ),
+                    _metricCard(
+                      "Média IMC",
+                      mediaImc.toStringAsFixed(2),
+                      Colors.orangeAccent,
+                    ),
+                    _metricCard(
+                      "Evolução 30d",
+                      variacao.toStringAsFixed(2),
+                      variacao < 0 ? Colors.greenAccent : Colors.redAccent,
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+
+        /// ✅ GRÁFICO ABAIXO
+        _buildGraficoAcademia(),
+      ],
+    );
+  }
+
+  //* NOVO: Card de ações rápidas para o aluno
+  Widget _buildGraficoAcademia() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: AcademiaRepository().buscarGraficoAcademia(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox();
+        }
+
+        final dados = snapshot.data!;
+
+        return Container(
+          margin: const EdgeInsets.only(top: 20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Evolução Média da Unidade",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 15),
+              EvolucaoChart(historico: dados),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  //* NOVO: Widget que mostra o ranking de evolução dos alunos para o professor
+  Widget _buildRankingProfessor() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: AcademiaRepository().buscarRankingEvolucao(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox();
+        }
+
+        final ranking = snapshot.data!;
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF111111),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Top 3 Evolução (30 dias)",
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              ...ranking.map((aluno) {
+                final evolucao =
+                    (aluno['evolucao_30d'] as num?)?.toDouble() ?? 0.0;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        aluno['nome'],
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      Text(
+                        evolucao.toStringAsFixed(2),
+                        style: TextStyle(
+                          color: evolucao < 0
+                              ? Colors.greenAccent
+                              : Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _metricCard(String titulo, String valor, Color cor) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            valor,
+            style: TextStyle(
+              color: cor,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
