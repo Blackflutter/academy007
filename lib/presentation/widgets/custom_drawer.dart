@@ -1,3 +1,4 @@
+import 'package:academy007/data/relatorios/selecionar_aluno_relatorio_screen.dart';
 import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:academy007/presentation/screens/criar_grupo_screen.dart';
 import 'package:academy007/presentation/screens/login_screen.dart';
@@ -169,14 +170,20 @@ class _CustomDrawerState extends State<CustomDrawer> {
               },
             ),
             _drawerItem(
-              icon: Icons.analytics,
-              label: "Avaliações Diárias",
-              onTap: () => Navigator.pop(context),
+              icon: Icons.bar_chart,
+              label: "Relatório de Alunos",
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SelecionarAlunoRelatorioScreen(),
+                  ),
+                );
+              },
             ),
 
-            const Divider(color: Colors.white10),
-
-            // ITEM CORRIGIDO: Gerenciar o grupo ativo
+            //* ITEM CORRIGIDO: Gerenciar o grupo ativo
             _drawerItem(
               icon: Icons.group_work,
               label: possuiGrupoAtivo

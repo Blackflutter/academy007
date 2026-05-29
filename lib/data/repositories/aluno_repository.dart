@@ -44,7 +44,30 @@ class AlunoRepository {
     }
   }
 
-  /// Busca os dados do perfil do usuário que está logado no momento.
+  //* ✅ Busca os registros detalhados do mês específico para gerar o gráfico
+  Future<List<Map<String, dynamic>>> buscarGraficoMensalAluno({
+    required String alunoId,
+    required DateTime mesSelecionado,
+  }) async {
+    final inicioMes = DateTime(mesSelecionado.year, mesSelecionado.month, 1);
+    final fimMes = DateTime(mesSelecionado.year, mesSelecionado.month + 1, 1);
+
+    try {
+      final dados = await _supabase
+          .from('historico_peso')
+          .select()
+          .eq('aluno_id', alunoId)
+          .gte('data_registro', inicioMes.toIso8601String())
+          .lt('data_registro', fimMes.toIso8601String())
+          .order('data_registro', ascending: true);
+
+      return List<Map<String, dynamic>>.from(dados);
+    } catch (e) {
+      throw Exception("Erro ao buscar gráfico mensal: $e");
+    }
+  }
+
+  //* Busca os dados do perfil do usuário que está logado no momento.
   Future<Map<String, dynamic>?> buscarMeuPerfil() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return null;
@@ -151,7 +174,20 @@ class AlunoRepository {
     };
   }
 
-  /// Registra um novo peso na tabela de histórico para alimentar o gráfico de evolução.
+  //* Busca o relatório mensal do aluno para alimentar o componente de relatório mensal.
+  Future<List<Map<String, dynamic>>> buscarRelatorioMensal(
+    String alunoId,
+  ) async {
+    final dados = await _supabase
+        .from('view_relatorio_mensal')
+        .select()
+        .eq('aluno_id', alunoId)
+        .order('mes', ascending: false);
+
+    return List<Map<String, dynamic>>.from(dados);
+  }
+
+  //*  Registra um novo peso na tabela de histórico para alimentar o gráfico de evolução.
   Future<void> registrarNovoPeso(double peso) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;

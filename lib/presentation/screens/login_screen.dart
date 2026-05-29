@@ -163,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   "Performance começa aqui.",
                   style: TextStyle(
                     color: AppTheme.primaryNeon,
-                    fontSize: 23,
+                    fontSize: 18,
                     letterSpacing: 0.5,
                   ),
                 ),

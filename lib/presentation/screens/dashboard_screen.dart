@@ -1,3 +1,4 @@
+import 'package:academy007/data/relatorios/selecionar_aluno_relatorio_screen.dart';
 import 'package:academy007/data/repositories/academia_repository.dart';
 import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:academy007/presentation/screens/admin_treino_screen.dart';
@@ -239,7 +240,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        /// ✅ GRID DE 3 MÉTRICAS
+        /// 🔹 MÉTRICAS RESPONSIVAS
         FutureBuilder<Map<String, dynamic>?>(
           future: repo.buscarDadosConsolidados(),
           builder: (context, snapshot) {
@@ -254,37 +255,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
               builder: (context, snapshotEvo) {
                 final variacao = snapshotEvo.data ?? 0.0;
 
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 3, // ✅ 3 COLUNAS
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 1.2,
-                  children: [
-                    _metricCard(
-                      "Alunos",
-                      totalAlunos.toString(),
-                      AppTheme.primaryNeon,
-                    ),
-                    _metricCard(
-                      "Média IMC",
-                      mediaImc.toStringAsFixed(2),
-                      Colors.orangeAccent,
-                    ),
-                    _metricCard(
-                      "Evolução 30d",
-                      variacao.toStringAsFixed(2),
-                      variacao < 0 ? Colors.greenAccent : Colors.redAccent,
-                    ),
-                  ],
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    int colunas;
+
+                    if (constraints.maxWidth < 450) {
+                      colunas = 2; // 📱 Mobile
+                    } else if (constraints.maxWidth < 800) {
+                      colunas = 3; // 📲 Tablet
+                    } else {
+                      colunas = 4; // 💻 Desktop
+                    }
+
+                    return GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: colunas,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.3,
+                      children: [
+                        _metricCard(
+                          "Alunos",
+                          totalAlunos.toString(),
+                          AppTheme.primaryNeon,
+                        ),
+                        _metricCard(
+                          "Média IMC",
+                          mediaImc.toStringAsFixed(2),
+                          Colors.orangeAccent,
+                        ),
+                        _metricCard(
+                          "Evolução 30d",
+                          variacao.toStringAsFixed(2),
+                          variacao < 0 ? Colors.greenAccent : Colors.redAccent,
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
             );
           },
         ),
 
-        /// ✅ GRÁFICO ABAIXO
+        //* 🔹 GRÁFICO CONSOLIDADO
         _buildGraficoAcademia(),
       ],
     );
@@ -885,11 +900,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
 
-              _bentoItem(
-                "Relatórios",
-                Icons.analytics,
-                "Desempenho",
-                Colors.orangeAccent,
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SelecionarAlunoRelatorioScreen(),
+                    ),
+                  );
+                },
+                child: _bentoItem(
+                  "Relatórios",
+                  Icons.analytics,
+                  "Desempenho",
+                  Colors.orangeAccent,
+                ),
               ),
             ]
           // Para ALUNO
