@@ -4,6 +4,7 @@ import 'package:academy007/data/repositories/grupo_repository.dart';
 import 'package:academy007/presentation/screens/admin_treino_screen.dart';
 import 'package:academy007/presentation/screens/alunos_academia_screen.dart';
 import 'package:academy007/presentation/screens/auditoria_treinos_screen.dart';
+import 'package:academy007/presentation/screens/caminhada_screen.dart';
 import 'package:academy007/presentation/screens/financeiro_screen.dart';
 import 'package:academy007/presentation/screens/historico_treino_aluno.dart';
 import 'package:academy007/presentation/screens/treino_grupos_screen.dart';
@@ -212,6 +213,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _buildBentoGrid(dados, isProfessor),
 
                   if (!isProfessor) ...[
+                    const SizedBox(height: 15),
                     _buildActionCard(),
                     const SizedBox(height: 15),
                     FutureBuilder<List<Map<String, dynamic>>>(
@@ -257,38 +259,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    int colunas;
+                    final largura = constraints.maxWidth;
 
-                    if (constraints.maxWidth < 450) {
-                      colunas = 2; // 📱 Mobile
-                    } else if (constraints.maxWidth < 800) {
-                      colunas = 3; // 📲 Tablet
-                    } else {
-                      colunas = 4; // 💻 Desktop
-                    }
-
-                    return GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: colunas,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.3,
+                    return Row(
                       children: [
-                        _metricCard(
-                          "Alunos",
-                          totalAlunos.toString(),
-                          AppTheme.primaryNeon,
+                        Expanded(
+                          child: _metricCardSmart(
+                            largura,
+                            "Alunos",
+                            totalAlunos.toString(),
+                            AppTheme.primaryNeon,
+                          ),
                         ),
-                        _metricCard(
-                          "Média IMC",
-                          mediaImc.toStringAsFixed(2),
-                          Colors.orangeAccent,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _metricCardSmart(
+                            largura,
+                            "IMC",
+                            mediaImc.toStringAsFixed(1),
+                            Colors.orangeAccent,
+                          ),
                         ),
-                        _metricCard(
-                          "Evolução 30d",
-                          variacao.toStringAsFixed(2),
-                          variacao < 0 ? Colors.greenAccent : Colors.redAccent,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _metricCardSmart(
+                            largura,
+                            "30d",
+                            variacao.toStringAsFixed(1),
+                            variacao < 0
+                                ? Colors.greenAccent
+                                : Colors.redAccent,
+                          ),
                         ),
                       ],
                     );
@@ -302,6 +303,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
         //* 🔹 GRÁFICO CONSOLIDADO
         _buildGraficoAcademia(),
       ],
+    );
+  }
+
+  Widget _metricCardSmart(
+    double larguraTotal,
+    String titulo,
+    String valor,
+    Color cor,
+  ) {
+    // largura aproximada de cada card
+    final larguraCard = (larguraTotal - 16) / 3;
+
+    // ajuste dinâmico de fonte baseado na largura
+    double fontTitulo = larguraCard * 0.12;
+    double fontValor = larguraCard * 0.22;
+
+    // limites mínimos e máximos
+    fontTitulo = fontTitulo.clamp(9, 13);
+    fontValor = fontValor.clamp(14, 26);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: larguraCard * 0.15,
+        horizontal: larguraCard * 0.08,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            titulo,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: Colors.grey, fontSize: fontTitulo),
+          ),
+          SizedBox(height: larguraCard * 0.05),
+          Text(
+            valor,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cor,
+              fontSize: fontValor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -446,7 +499,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Center(
@@ -467,7 +520,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Row(
@@ -512,9 +565,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: cor.withOpacity(0.1),
+            color: cor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: cor.withOpacity(0.3)),
+            border: Border.all(color: cor.withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [
@@ -560,7 +613,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           margin: const EdgeInsets.only(top: 15),
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
-            color: AppTheme.primaryNeon.withOpacity(0.1),
+            color: AppTheme.primaryNeon.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -609,7 +662,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 const Text(
                   "Bem-vindo de volta,",
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
                 ),
                 Text(
                   nome,
@@ -737,7 +790,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           const Text(
             "MEU IMC ATUAL",
-            style: TextStyle(color: Colors.white70, fontSize: 12),
+            style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 5),
           Row(
@@ -771,8 +824,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
       childAspectRatio: 1.1,
       children: isProfessor
           ? [
@@ -918,6 +971,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ]
           // Para ALUNO
+          // ✅ PARA ALUNO
           : [
               GestureDetector(
                 onTap: () => _mostrarDialogoPeso(context),
@@ -928,18 +982,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Colors.blueAccent,
                 ),
               ),
+
               _bentoItem(
                 "Altura",
                 Icons.height,
                 "${(dados?['altura'] ?? 0).toStringAsFixed(2)} m",
                 Colors.orangeAccent,
               ),
+
               _bentoItem(
                 "Idade",
                 Icons.calendar_today,
                 "${dados?['idade'] ?? '--'} anos",
                 Colors.purpleAccent,
               ),
+
               GestureDetector(
                 onTap: () => Navigator.push(
                   context,
@@ -954,6 +1011,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   AppTheme.primaryNeon,
                 ),
               ),
+
               GestureDetector(
                 onTap: () => Navigator.push(
                   context,
@@ -966,6 +1024,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Colors.redAccent,
                 ),
               ),
+
               GestureDetector(
                 onTap: () => Navigator.push(
                   context,
@@ -974,10 +1033,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 child: _bentoItem(
-                  "Gestão",
-                  Icons.admin_panel_settings,
                   "Treinos",
+                  Icons.fitness_center,
+                  "Iniciar",
                   Colors.tealAccent,
+                ),
+              ),
+
+              // ✅ ✅ NOVO ITEM CAMINHADA
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CaminhadaScreen()),
+                ),
+                child: _bentoItem(
+                  "Caminhada",
+                  Icons.directions_walk,
+                  "Rastrear",
+                  Colors.lightGreenAccent,
                 ),
               ),
             ],
@@ -995,8 +1068,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
+          Icon(icon, color: color, size: 38),
+          const SizedBox(
+            height: 8,
+          ), //*mudança aqui para dar mais espaço entre o ícone e o texto
           Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
           const SizedBox(height: 2),
           Text(
