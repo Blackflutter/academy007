@@ -1040,19 +1040,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
 
-              // ✅ ✅ NOVO ITEM CAMINHADA
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const CaminhadaScreen()),
-                ),
-                child: _bentoItem(
-                  "Caminhada",
-                  Icons.directions_walk,
-                  "Rastrear",
-                  Colors.lightGreenAccent,
-                ),
-              ),
+              //* ✅ ✅ NOVO ITEM CAMINHADA
+              //          GestureDetector(
+              //            onTap: () => Navigator.push(
+              //              context,
+              //              MaterialPageRoute(builder: (_) => const CaminhadaScreen()),
+              //            ),
+              //            child: _bentoItem(
+              //               "Caminhada",
+              //               Icons.directions_walk,
+              //               "Rastrear",
+              //               Colors.lightGreenAccent,
+              //             ),
+              //          ),
             ],
     );
   }
